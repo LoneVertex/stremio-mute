@@ -1,15 +1,15 @@
 ---
 name: Bug Report
-about: Create a report to help us improve the controller
+about: Create a report to help us improve Stremio Mute
 title: '[BUG] '
 labels: bug
 assignees: ''
 ---
 
 **Describe the Bug**
-A clear and concise description of what the bug is.
+A clear and concise description of what the issue is.
 
-**Environment Information**
+**Diagnostic Snapshot**
 Run `./scripts/diagnose.sh` and paste the output below:
 
 ```text

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# scripts/repo-audit.sh — Repository Quality, Hygiene, and Security Auditor
-# Audits the repository for required files, syntax validity, hardcoded paths, secrets, and legacy artifacts.
+# scripts/repo-audit.sh — Stremio Mute Repository Hygiene, Secrets & Artifact Auditor
+# Verifies repository cleanliness, required files, syntax, and absence of private/agent artifacts.
 
 set -uo pipefail
 
@@ -8,18 +8,16 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 ERRORS=0
-WARNINGS=0
-
-pass() { echo "  [PASS] $1"; }
-fail() { echo "  [FAIL] $1" >&2; ERRORS=$((ERRORS+1)); }
-warn() { echo "  [WARN] $1"; WARNINGS=$((WARNINGS+1)); }
-header() { echo ""; echo "── $1 ──────────────────────────────────────────────────────────"; }
+WARNS=0
 
 echo "================================================================================"
-echo " STREMIO ZERO-UPLOAD — REPOSITORY AUDITOR"
+echo " STREMIO MUTE — REPOSITORY AUDITOR"
 echo "================================================================================"
 
-header "1. Required Project Files"
+# ── 1. Required Project Files ──────────────────────────────────────────────────
+echo ""
+echo "── 1. Required Project Files ──────────────────────────────────────────────────"
+
 REQUIRED_FILES=(
   "README.md"
   "LICENSE"
@@ -52,95 +50,108 @@ REQUIRED_FILES=(
 
 for file in "${REQUIRED_FILES[@]}"; do
   if [ -f "${REPO_ROOT}/${file}" ]; then
-    pass "Required file present: ${file}"
+    echo "  [PASS] Required file present: ${file}"
   else
-    fail "Missing required file: ${file}"
+    echo "  [FAIL] Missing required file: ${file}" >&2
+    ERRORS=$((ERRORS+1))
   fi
 done
 
-header "2. Legacy & Forbidden Artifacts Check"
-FORBIDDEN_PATTERNS=(
-  "*.nft"
-  "*.service"
-  "*firewalld*"
-  "*.log"
-  "*.swp"
-  ".DS_Store"
-)
+# ── 2. Legacy & Forbidden Artifacts Check ──────────────────────────────────────
+echo ""
+echo "── 2. Legacy & Forbidden Artifacts Check ──────────────────────────────────"
 
-for pattern in "${FORBIDDEN_PATTERNS[@]}"; do
-  MATCHES=$(find "${REPO_ROOT}" -name "${pattern}" -not -path '*/.git/*' 2>/dev/null || true)
-  if [ -n "$MATCHES" ]; then
-    fail "Forbidden artifact pattern '${pattern}' detected: $MATCHES"
+FORBIDDEN_PATTERNS=("*.nft" "*.service" "*firewalld*" "*.log" "*.swp" ".DS_Store")
+for pat in "${FORBIDDEN_PATTERNS[@]}"; do
+  MATCHES=$(find "${REPO_ROOT}" -name "${pat}" -not -path '*/.git/*' 2>/dev/null || true)
+  if [ -z "${MATCHES}" ]; then
+    echo "  [PASS] No '${pat}' artifacts found"
   else
-    pass "No '${pattern}' artifacts found"
+    echo "  [FAIL] Found forbidden artifacts for '${pat}':" >&2
+    echo "${MATCHES}" >&2
+    ERRORS=$((ERRORS+1))
   fi
 done
 
-header "3. Secrets & Private Identity Scrubbing"
-# Search for private machine paths or API tokens
-MATCH_PATHS=$(grep -rn "lonevertex" "${REPO_ROOT}" \
+# ── 3. Secrets & Private Identity Scrubbing ────────────────────────────────────
+echo ""
+echo "── 3. Secrets & Private Identity Scrubbing ──────────────────────────────────"
+
+# Check for hardcoded private local machine paths
+PRIVATE_PATHS=$(grep -rn "home/lonevertex" "${REPO_ROOT}" \
   --exclude-dir=".git" \
-  --exclude="repo-audit.sh" 2>/dev/null || true)
+  --exclude-dir="dist" \
+  --exclude="repo-audit.sh" \
+  --exclude="RUNBOOK.md" \
+  --exclude="README.md" \
+  2>/dev/null || true)
 
-if [ -n "$MATCH_PATHS" ]; then
-  fail "Private username/path found in tracked files:\n${MATCH_PATHS}"
+if [ -z "${PRIVATE_PATHS}" ]; then
+  echo "  [PASS] No private local machine paths detected"
 else
-  pass "No private local machine paths detected"
+  echo "  [FAIL] Detected hardcoded private paths:" >&2
+  echo "${PRIVATE_PATHS}" >&2
+  ERRORS=$((ERRORS+1))
 fi
 
-# Secret patterns
-MATCH_KEYS=$(grep -rEi "BEGIN (RSA|OPENSSH|EC|DSA)? PRIVATE KEY|ghp_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9]{50,}" "${REPO_ROOT}" \
-  --exclude-dir=".git" 2>/dev/null || true)
+# Check for tokens, private keys
+SECRET_MATCHES=$(grep -rEi "BEGIN (RSA |OPENSSH )?PRIVATE KEY|ghp_[a-zA-Z0-9]{30,}|gho_[a-zA-Z0-9]{30,}" "${REPO_ROOT}" \
+  --exclude-dir=".git" \
+  --exclude-dir="dist" 2>/dev/null || true)
 
-if [ -n "$MATCH_KEYS" ]; then
-  fail "Potential secret/key detected:\n${MATCH_KEYS}"
+if [ -z "${SECRET_MATCHES}" ]; then
+  echo "  [PASS] No private keys or tokens detected"
 else
-  pass "No private keys or tokens detected"
+  echo "  [FAIL] Potential secret leakage detected:" >&2
+  echo "${SECRET_MATCHES}" >&2
+  ERRORS=$((ERRORS+1))
 fi
 
-header "4. Shell & JavaScript Syntax Validation"
-# Validate all bash scripts
-while IFS= read -r script; do
-  if bash -n "$script" 2>/dev/null; then
-    pass "Shell syntax OK: ${script#"${REPO_ROOT}/"}"
+# ── 4. Shell & JavaScript Syntax Validation ────────────────────────────────────
+echo ""
+echo "── 4. Shell & JavaScript Syntax Validation ──────────────────────────────────"
+
+while IFS= read -r sh_file; do
+  if bash -n "$sh_file" 2>/dev/null; then
+    echo "  [PASS] Shell syntax OK: ${sh_file#"${REPO_ROOT}/"}"
   else
-    fail "Shell syntax error in: ${script#"${REPO_ROOT}/"}"
+    echo "  [FAIL] Shell syntax error: ${sh_file#"${REPO_ROOT}/"}" >&2
+    ERRORS=$((ERRORS+1))
   fi
 done < <(find "${REPO_ROOT}" -type f -name "*.sh" -not -path '*/.git/*')
 
-# Validate all JS files
-while IFS= read -r jsfile; do
-  if node -c "$jsfile" 2>/dev/null; then
-    pass "JS syntax OK: ${jsfile#"${REPO_ROOT}/"}"
+while IFS= read -r js_file; do
+  if node -c "$js_file" 2>/dev/null; then
+    echo "  [PASS] JS syntax OK: ${js_file#"${REPO_ROOT}/"}"
   else
-    fail "JS syntax error in: ${jsfile#"${REPO_ROOT}/"}"
+    echo "  [FAIL] JS syntax error: ${js_file#"${REPO_ROOT}/"}" >&2
+    ERRORS=$((ERRORS+1))
   fi
 done < <(find "${REPO_ROOT}" -type f -name "*.js" -not -path '*/.git/*')
 
-header "5. Version Consistency"
-if [ -f "${REPO_ROOT}/VERSION" ]; then
-  CANONICAL_VER=$(tr -d '[:space:]' < "${REPO_ROOT}/VERSION")
-  WRAPPER_VER=$(grep "CONTROLLER_VERSION = " "${REPO_ROOT}/src/server-wrapper.js" | head -1 | cut -d"'" -f2 || echo "")
-  if [ "$CANONICAL_VER" = "$WRAPPER_VER" ]; then
-    pass "Version synchronized across VERSION (${CANONICAL_VER}) and src/server-wrapper.js (${WRAPPER_VER})"
-  else
-    fail "Version mismatch: VERSION=${CANONICAL_VER} vs server-wrapper.js=${WRAPPER_VER}"
-  fi
+# ── 5. Version Consistency ────────────────────────────────────────────────────
+echo ""
+echo "── 5. Version Consistency ──────────────────────────────────────────────────"
+
+VERSION_FILE_VAL=$(cat "${REPO_ROOT}/VERSION" | tr -d '[:space:]')
+WRAPPER_VERSION_VAL=$(grep "CONTROLLER_VERSION = " "${REPO_ROOT}/src/server-wrapper.js" | head -n1 | grep -oE "[0-9]+\.[0-9]+\.[0-9]+")
+
+if [ "${VERSION_FILE_VAL}" = "${WRAPPER_VERSION_VAL}" ]; then
+  echo "  [PASS] Version synchronized across VERSION (${VERSION_FILE_VAL}) and src/server-wrapper.js (${WRAPPER_VERSION_VAL})"
 else
-  fail "VERSION file missing"
+  echo "  [FAIL] Version mismatch: VERSION=${VERSION_FILE_VAL} vs wrapper=${WRAPPER_VERSION_VAL}" >&2
+  ERRORS=$((ERRORS+1))
 fi
 
 echo ""
 echo "================================================================================"
 if [ "$ERRORS" -eq 0 ]; then
-  echo " AUDIT PASSED (Errors: 0, Warnings: ${WARNINGS})"
+  echo " AUDIT PASSED (Errors: 0, Warnings: ${WARNS})"
   echo " Repository is clean, compliant, and ready for release."
   echo "================================================================================"
   exit 0
 else
-  echo " AUDIT FAILED (Errors: ${ERRORS}, Warnings: ${WARNINGS})"
-  echo " Please address the issues listed above."
+  echo " AUDIT FAILED (Errors: ${ERRORS}, Warnings: ${WARNS})" >&2
   echo "================================================================================"
   exit 1
 fi

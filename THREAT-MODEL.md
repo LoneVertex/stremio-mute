@@ -1,7 +1,7 @@
-# Threat Model & Security Policy — Stremio Zero-Upload Controller
+# Threat Model & Security Policy — Stremio Mute
 
-**Document Version:** 1.0.0  
-**Scope:** `stremio-zero-upload` (Node.js in-memory wrapper & Flatpak override)  
+**Project:** Stremio Mute (`LoneVertex/stremio-mute`)  
+**Scope:** Node.js in-memory wrapper & Flatpak user override  
 
 ---
 
@@ -9,7 +9,7 @@
 
 | Asset | Description | Security Objective |
 |---|---|---|
-| **ISP Bandwidth Quota** | Upstream cellular/metered/broadband network quota. | Prevent unwanted BitTorrent piece seeding from exhausting data limits. |
+| **Upstream Bandwidth Quota** | User's upstream cellular/metered/broadband network quota. | Prevent unwanted BitTorrent piece seeding from exhausting data limits. |
 | **Local Stremio Playback** | Media streaming performance and player responsiveness. | Ensure video chunks download and stream without degradation. |
 | **Local IPC Integrity** | HTTP communication on `127.0.0.1:11470`. | Ensure loopback communication between Stremio GUI and engine is reliable and secure. |
 | **System Security & Isolation** | Host OS security, user privacy, and Flatpak sandbox isolation. | Prevent privilege escalation, path traversal, or credential leakage. |
@@ -26,7 +26,7 @@
 ### Threat 2: Bypass of BitTorrent Choking Logic by Malicious Peers
 - **Vector:** A rogue BitTorrent peer sends `request` messages despite being choked (`wire.amChoking = true`).
 - **Risk:** Medium (Potential piece upload).
-- **Mitigation by Construction:** Invariant 3 neutralizes `wire.on("request")` by immediately invoking `cb(new Error("Upload disabled by policy"))` before `uploadPipe.push(engine.store.read)` can access disk piece cache.
+- **Mitigation by Construction:** Invariant 3 neutralizes `wire.on("request")` by immediately invoking `cb(new Error("Peer piece upload muted by policy"))` before `uploadPipe.push(engine.store.read)` can access disk piece cache.
 
 ### Threat 3: Execution of Unprivileged / Malicious Code
 - **Vector:** The wrapper script could be manipulated or executed with elevated permissions.
@@ -36,7 +36,7 @@
 ### Threat 4: Local Port Exposure / IPC Interception
 - **Vector:** External entities on LAN attempting to query controller status or stream endpoints.
 - **Risk:** Low.
-- **Mitigation by Construction:** The controller status endpoint (`/zero-upload-controller`) only binds to `127.0.0.1`. CORS headers restrict origin access. No sensitive metadata (stream names, user credentials, hashes) is exposed in telemetry.
+- **Mitigation by Construction:** The controller status endpoint (`/zero-upload-controller`) only binds to `127.0.0.1`. CORS headers restrict origin access to local loopback. No sensitive metadata (stream names, user credentials, hashes) is exposed in telemetry.
 
 ---
 

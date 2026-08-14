@@ -1,4 +1,4 @@
-# Contributing to Stremio Zero-Upload Controller
+# Contributing to Stremio Mute
 
 Thank you for your interest in contributing!
 
@@ -10,31 +10,33 @@ All contributors are expected to adhere to our [Code of Conduct](CODE_OF_CONDUCT
 
 ---
 
-## Scope & Non-Goals
+## Project Invariants & Non-Goals
 
-Contributions must strictly align with the project's mission: **enforcing zero BitTorrent piece upload policy on Linux Stremio while preserving normal playback and local IPC**.
+Contributions must strictly align with the project's mission: **enforcing application-level BitTorrent peer-piece upload suppression on Linux Stremio while preserving normal playback and local IPC**.
 
 We do **NOT** accept contributions that:
-- Integrate third-party Stremio addons, scrapers, or indexers.
+- Integrate third-party Stremio addons, scrapers, indexers, or content providers.
 - Integrate Debrid services (Real-Debrid, AllDebrid, Premiumize, etc.).
-- Introduce external proxies or streaming content relays.
-- Weaken fail-closed safety or remove strict patch assertions.
+- Introduce external proxies, VPN wrappers, or streaming relays.
+- Weaken fail-closed safety or remove exact-1 occurrence patch assertions.
+- Modify Stremio vendor files directly on disk.
 
 ---
 
-## Development Workflow
+## Development & Testing Workflow
 
 1. Fork and clone the repository:
    ```bash
-   git clone https://github.com/LoneVertex/stremio-zero-upload.git
-   cd stremio-zero-upload
+   git clone https://github.com/LoneVertex/stremio-mute.git
+   cd stremio-mute
    ```
-2. Run the test suite:
+2. Run the test battery:
    ```bash
    bash tests/static/test_syntax.sh
    bash tests/compatibility/test_compatibility_fixtures.sh
+   bash tests/integration/test_install_rollback.sh
    ```
-3. Run the repository auditor:
+3. Run the repository hygiene auditor:
    ```bash
    bash scripts/repo-audit.sh
    ```

@@ -6,9 +6,12 @@ on:
   pull_request:
     branches: [ main ]
 
+permissions:
+  contents: read
+
 jobs:
   test:
-    name: Lint, Syntax & Compatibility Tests
+    name: Lint, Syntax, Fixtures & Security Audit
     runs-on: ubuntu-latest
 
     steps:

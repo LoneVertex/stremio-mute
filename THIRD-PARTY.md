@@ -1,4 +1,4 @@
-# Third-Party Notices & Trademarks — Stremio Zero-Upload Controller
+# Third-Party Notices & Trademarks — Stremio Mute
 
 ## Stremio
 - **Stremio** is a registered trademark and software product of **Smart Code LTD**.
@@ -7,4 +7,4 @@
 
 ## Node.js & BitTorrent Dependencies
 - Stremio's embedded engine incorporates components of [`torrent-stream`](https://github.com/mafintosh/torrent-stream) (MIT License, Copyright Mathias Buus) and `peer-wire-swarm`.
-- The controller injects policy invariants directly into Node.js runtime memory without redistributing or altering upstream licenses.
+- Stremio Mute injects policy invariants directly into Node.js runtime memory without redistributing or altering upstream licenses.

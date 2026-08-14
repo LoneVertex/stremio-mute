@@ -1,62 +1,63 @@
-# Operational Runbook — Stremio Zero-Upload Controller
+# Operational Runbook — Stremio Mute
 
-**Audience:** System Administrators, Power Users, and End Users  
-**System:** Linux (Flatpak Stremio)  
+**Audience:** System Administrators, Desktop Linux Users, and Power Users  
+**System Target:** Linux (Flatpak Stremio `com.stremio.Stremio`)  
 
 ---
 
-## 1. Standard Day-1 Deployment
+## 1. Day-1 Installation & Setup
 
 ### Step 1: Clone Repository
 ```bash
-git clone https://github.com/venom010101/stremio-zero-upload.git
-cd stremio-zero-upload
+git clone https://github.com/LoneVertex/stremio-mute.git
+cd stremio-mute
 ```
 
-### Step 2: Install
+### Step 2: Install Stremio Mute
 ```bash
 ./scripts/install.sh
 ```
+*Note: The installer automatically checks Stremio engine compatibility before making changes.*
 
-### Step 3: Verify
+### Step 3: Verify Static Configuration
 ```bash
 ./scripts/verify.sh
 ```
-Confirm `STATUS: CONFIGURED (STATIC VALIDATION PASSED)`.
+Confirm output indicates: `STATUS: CONFIGURED (STATIC VALIDATION PASSED)`.
 
-### Step 4: Launch & Runtime Check
-1. Start Stremio from your desktop application menu.
+### Step 4: Launch Stremio & Verify Runtime
+1. Start Stremio from your desktop application launcher or terminal (`flatpak run com.stremio.Stremio`).
 2. Play any video stream.
 3. In a terminal, run:
    ```bash
    ./scripts/verify.sh
    ```
-4. Confirm `STATUS: RUNTIME VERIFIED (ZERO UPLOAD ENFORCED)`.
+4. Confirm output indicates: `STATUS: RUNTIME VERIFIED (UPLOADS MUTED)`.
 
 ---
 
 ## 2. Upstream Stremio Update Procedure
 
-When Flatpak updates Stremio:
+When Flatpak updates the Stremio package:
 ```bash
 flatpak update com.stremio.Stremio
 ```
 
-### Post-Update Action:
-Run the operational health check immediately:
+### Post-Update Operational Check:
+Run the verifier immediately:
 ```bash
 ./scripts/verify.sh
 ```
 
-- **Scenario A (Status is `CONFIGURED`):** The update preserves the expected internal code structure. No action required; launch Stremio normally.
-- **Scenario B (Status is `NOT PROTECTED`):** The update modified `server.js` code structure.
-  - The controller will **fail closed** to prevent unsuppressed uploads.
+- **Scenario A (Status is `CONFIGURED`):** The update preserves the expected internal code structure. Launch Stremio normally.
+- **Scenario B (Status is `INCOMPATIBLE`):** The update modified `server.js` minification or layout.
+  - The controller **fails closed** upon launch, preventing unmuted uploads.
   - Generate diagnostics:
     ```bash
     ./scripts/diagnose.sh
     ```
-  - Open a [Compatibility Issue](https://github.com/venom010101/stremio-zero-upload/issues) with the diagnostic output.
-  - Optional temporary fallback to stock Stremio:
+  - Open a [Compatibility Issue](https://github.com/LoneVertex/stremio-mute/issues) with the diagnostic report.
+  - Optional temporary rollback to stock Stremio while awaiting a controller update:
     ```bash
     ./scripts/rollback.sh
     ```
@@ -65,8 +66,8 @@ Run the operational health check immediately:
 
 ## 3. Clean Rollback Procedure
 
-To cleanly remove the controller:
+To cleanly remove Stremio Mute and restore stock Stremio configuration:
 ```bash
 ./scripts/rollback.sh
 ```
-Verify that `rollback.sh` outputs `ROLLBACK SUCCESSFUL`.
+Confirm output indicates `ROLLBACK SUCCESSFUL`.

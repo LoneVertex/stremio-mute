@@ -1,16 +1,16 @@
-# Architecture & Technical Deep Dive — Stremio Zero-Upload Controller
+# Architecture & Technical Deep Dive — Stremio Mute
 
-**Author:** venom010101  
+**Project:** Stremio Mute (`LoneVertex/stremio-mute`)  
 **Target:** Stremio Linux Flatpak (`com.stremio.Stremio`)  
-**Status:** IMPLEMENTED & PRODUCTION HARDENED  
+**Classification:** `PASS WITH VERSION-SENSITIVITY`  
 
 ---
 
 ## 1. Problem Definition & Root Cause
 
-Stremio is a modular media center that streams torrents sequentially to provide smooth video playback. Under the hood, Stremio bundles a Node.js streaming server (`server.js`) that uses an internal fork of [`torrent-stream`](https://github.com/mafintosh/torrent-stream) (commit `4d9eaff84e3b7a1008314daa007d5feb6fa26388`) wrapped by Stremio's `EngineFS` layer (v4.21.0).
+Stremio is an extensible media center that plays torrent streams sequentially to provide smooth video playback. Stremio packages an embedded Node.js streaming server (`server.js`) that uses an internal fork of [`torrent-stream`](https://github.com/mafintosh/torrent-stream) wrapped by Stremio's `EngineFS` layer (v4.21.0).
 
-### Root Cause Analysis in `server.js`
+### Root Cause in `server.js`
 
 In `server.js` (Webpack module ~814, lines 72445–72750), the BitTorrent engine constructor initializes upload slots as follows:
 
@@ -21,34 +21,37 @@ var rechokeIntervalId, rechokeSlots = !1 === opts.uploads || 0 === opts.uploads 
 If `opts.uploads` is not explicitly set to `0` or `false`, `rechokeSlots` defaults to **5**.
 
 In standard Stremio installations:
-1. `EngineFS.getDefaults()` does not define `uploads`.
-2. Stremio's HTTP settings API (`/settings`, `server-settings.json`) does not expose a functioning `uploads` option to `EngineFS`.
+1. `EngineFS.getDefaults()` does not define an `uploads` option.
+2. Stremio's HTTP settings API (`/settings`, `server-settings.json`) does not propagate an `uploads` value to `EngineFS`.
 3. Consequently, every streaming engine allocates 5 upload slots.
 4. When remote peers send BitTorrent `request` messages, `server.js` reads cached pieces from disk via `uploadPipe.push(engine.store.read, index, ...)` and transmits them to peers, consuming upstream bandwidth equal to or exceeding the media stream size.
 
 ---
 
-## 2. Why Network-Layer Alternatives Were Rejected
+## 2. Technical Evaluation of Alternative Architectures
 
-During architectural evaluation, multiple network-layer mechanisms were analyzed and systematically rejected:
+During initial investigation, several system and network-level mechanisms were evaluated:
 
 ### 1. `nftables` / `conntrack` Directional Filtering (REJECTED)
 - **Concept:** Filter egress traffic based on connection tracking state (`ct direction original accept; counter drop`).
-- **Fatal Flaw:** The BitTorrent protocol (BEP 3) is full-duplex and bidirectional over a single TCP socket. When Stremio initiates an outbound TCP connection to a peer (`ct direction original`), that connection carries both inbound download requests and outbound piece uploads. Therefore, accepting `ct direction original` permits 100% of peer piece uploads on outbound-initiated connections.
+- **Technical Inadequacy:** The BitTorrent protocol (BEP 3) is full-duplex and bidirectional over a single TCP socket. When Stremio initiates an outbound TCP connection to a peer (`ct direction original`), that connection carries both inbound download requests and outbound piece uploads. Therefore, accepting `ct direction original` permits 100% of peer piece uploads on outbound-initiated connections. Filtering by payload inspection at L4 is brittle and introduces kernel overhead.
 
 ### 2. UID / GID Filtering (REJECTED)
 - **Concept:** Drop egress packets belonging to user UID `1000`.
-- **Fatal Flaw:** UID 1000 is shared by all user desktop processes (browsers, desktop shell, media players), causing collateral network blockage across the entire session.
+- **Technical Inadequacy:** UID 1000 is shared by all user desktop processes (browsers, desktop shell, media players), causing collateral network blockage across the entire desktop session.
 
-### 3. Network Namespaces / eBPF cgroups (REJECTED)
+### 3. Network Namespaces & eBPF cgroups (REJECTED)
 - **Concept:** Isolate Stremio in a dedicated network namespace with veth pair filtering.
-- **Fatal Flaw:** Introduces high system complexity, requires root/sudo daemon management, and breaks local loopback IPC routing to desktop media player endpoints (`127.0.0.1:11470`).
+- **Technical Inadequacy:** While network namespaces can isolate network traffic, implementing them for desktop Flatpak applications introduces substantial architectural drawbacks:
+  - Requires elevated root/daemon privileges to manage namespace routing and veth bridges.
+  - Requires intricate port-forwarding and proxy plumbing to route local media player traffic back to the host desktop player.
+  - Adds brittle desktop integration overhead and higher maintenance burden compared to deterministic application-layer control.
 
 ---
 
 ## 3. The In-Memory Controller Architecture
 
-The **Stremio Zero-Upload Controller** enforces policy at the application layer by modifying engine state directly in Node.js process memory.
+The **Stremio Mute** controller enforces policy at the application layer by modifying engine state directly in Node.js process memory.
 
 ```text
                                +--------------------------------------------+
@@ -58,7 +61,7 @@ The **Stremio Zero-Upload Controller** enforces policy at the application layer 
                                                      | (Spawns Node using SERVER_PATH)
                                                      v
                                +--------------------------------------------+
-                               |     src/server-wrapper.js (Controller)     |
+                               |        src/server-wrapper.js (v1.2.0)      |
                                +--------------------------------------------+
                                                      |
                      +-------------------------------+-------------------------------+
@@ -96,7 +99,7 @@ The **Stremio Zero-Upload Controller** enforces policy at the application layer 
 #### Invariant 3: Request Handler Neutralization
 - **Mechanism:** In `wire.on("request", ...)`, the handler is patched:
   ```javascript
-  return cb(new Error("Upload disabled by policy"));
+  return cb(new Error("Peer piece upload muted by policy"));
   uploadPipe.push(engine.store.read, index, ...);
   ```
 - **Defense in Depth:** Even if a peer bypassed wire choking, the handler returns an immediate error before `engine.store.read` can read disk pieces or call `self.piece()`.
@@ -107,7 +110,7 @@ The **Stremio Zero-Upload Controller** enforces policy at the application layer 
 
 Under the BitTorrent protocol specification (BEP 3), upload and download states are entirely decoupled:
 
-| Wire Property | Meaning | Controlled By | State in Controller |
+| Wire Property | Meaning | Controlled By | State in Stremio Mute |
 |---|---|---|---|
 | `wire.amChoking` | Stremio chokes remote peer (No uploads to peer) | Stremio Engine | **`true` (Permanently Choked)** |
 | `wire.peerChoking` | Remote peer chokes Stremio | Remote Peer | **`false` (When peer unchokes us)** |

@@ -1,167 +1,210 @@
 #!/usr/bin/env bash
-# scripts/verify.sh — Operational Health Check for Stremio Zero-Upload Controller
-# Evaluates static configuration, structural compatibility, and runtime IPC telemetry.
+# scripts/verify.sh — Stremio Mute Operational Health Check
+# Authoritative State Semantics:
+# NOT INSTALLED | CONFIGURED | RUNTIME VERIFIED | NOT PROTECTED | INCOMPATIBLE | ERROR
 
 set -uo pipefail
 
-QUIET=0
-for arg in "$@"; do
-  if [ "$arg" = "--quiet" ] || [ "$arg" = "-q" ]; then
-    QUIET=1
+APP_ID="com.stremio.Stremio"
+CONTROLLER_FILE="${HOME}/.var/app/${APP_ID}/.stremio-server/server-wrapper.js"
+EXPECTED_OVERRIDE_VAL="SERVER_PATH=~/.stremio-server/server-wrapper.js"
+OVERRIDE_FILE="${HOME}/.local/share/flatpak/overrides/${APP_ID}"
+
+TOTAL_CHECKS=0
+PASSED_CHECKS=0
+WARNS=0
+ERRORS=0
+
+# State flags
+STATIC_OK=false
+RUNTIME_RUNNING=false
+CONTROLLER_RESPONSIVE=false
+HEARTBEAT_OK=false
+INCOMPATIBLE=false
+NOT_INSTALLED=false
+
+echo "================================================================================"
+echo " STREMIO MUTE — OPERATIONAL HEALTH CHECK"
+echo " Tagline: Mute BitTorrent peer uploads. Keep streaming."
+echo "================================================================================"
+
+# ── 1. Controller File & Syntax Integrity ──────────────────────────────────────
+echo ""
+echo "── 1. Controller File & Syntax Integrity ────────────────────────────────────"
+
+TOTAL_CHECKS=$((TOTAL_CHECKS+1))
+if [ -f "${CONTROLLER_FILE}" ]; then
+  echo "  [PASS] server-wrapper.js exists in sandbox storage"
+  PASSED_CHECKS=$((PASSED_CHECKS+1))
+  
+  TOTAL_CHECKS=$((TOTAL_CHECKS+1))
+  PERMS=$(stat -c "%a" "${CONTROLLER_FILE}" 2>/dev/null || stat -f "%Lp" "${CONTROLLER_FILE}" 2>/dev/null || echo "unknown")
+  if [ "$PERMS" = "644" ] || [ "$PERMS" = "755" ]; then
+    echo "  [PASS] Permissions are safe (${PERMS})"
+    PASSED_CHECKS=$((PASSED_CHECKS+1))
+  else
+    echo "  [WARN] File permissions are: ${PERMS} (expected 644)"
+    WARNS=$((WARNS+1))
   fi
-done
 
-PASS=0
-FAIL=0
-WARN=0
-RUNTIME_ACTIVE=0
+  TOTAL_CHECKS=$((TOTAL_CHECKS+1))
+  if node -c "${CONTROLLER_FILE}" 2>/dev/null; then
+    echo "  [PASS] server-wrapper.js JavaScript syntax is valid"
+    PASSED_CHECKS=$((PASSED_CHECKS+1))
+  else
+    echo "  [FAIL] server-wrapper.js has JavaScript syntax errors"
+    ERRORS=$((ERRORS+1))
+  fi
+else
+  echo "  [FAIL] Controller file missing at: ${CONTROLLER_FILE}"
+  ERRORS=$((ERRORS+1))
+  NOT_INSTALLED=true
+fi
 
-ok()   { [ "$QUIET" -eq 0 ] && echo "  [PASS] $1"; PASS=$((PASS+1)); }
-fail() { [ "$QUIET" -eq 0 ] && echo "  [FAIL] $1"; FAIL=$((FAIL+1)); }
-warn() { [ "$QUIET" -eq 0 ] && echo "  [WARN] $1"; WARN=$((WARN+1)); }
-section() { [ "$QUIET" -eq 0 ] && { echo ""; echo "── $1 ──────────────────────────────────────────────────────────"; }; }
+# ── 2. Flatpak Installation & User Override ────────────────────────────────────
+echo ""
+echo "── 2. Flatpak Installation & User Override ──────────────────────────────────"
 
-if [ "$QUIET" -eq 0 ]; then
+TOTAL_CHECKS=$((TOTAL_CHECKS+1))
+if flatpak info "${APP_ID}" &>/dev/null; then
+  echo "  [PASS] ${APP_ID} is installed via Flatpak"
+  PASSED_CHECKS=$((PASSED_CHECKS+1))
+else
+  echo "  [FAIL] ${APP_ID} is not installed via Flatpak"
+  ERRORS=$((ERRORS+1))
+  NOT_INSTALLED=true
+fi
+
+TOTAL_CHECKS=$((TOTAL_CHECKS+1))
+# Primary source of truth: flatpak override --user --show
+OVERRIDE_SHOW=$(flatpak override --user --show "${APP_ID}" 2>/dev/null || echo "")
+if echo "${OVERRIDE_SHOW}" | grep -q "SERVER_PATH="; then
+  VAL=$(echo "${OVERRIDE_SHOW}" | grep "SERVER_PATH=" | head -n1)
+  echo "  [PASS] Flatpak user override active (CLI: ${VAL})"
+  PASSED_CHECKS=$((PASSED_CHECKS+1))
+elif [ -f "${OVERRIDE_FILE}" ] && grep -q "SERVER_PATH=" "${OVERRIDE_FILE}" 2>/dev/null; then
+  VAL=$(grep "SERVER_PATH=" "${OVERRIDE_FILE}" | head -n1)
+  echo "  [PASS] Flatpak override active (Fallback file check: ${VAL})"
+  PASSED_CHECKS=$((PASSED_CHECKS+1))
+else
+  echo "  [FAIL] Flatpak user environment override for SERVER_PATH is missing"
+  ERRORS=$((ERRORS+1))
+  NOT_INSTALLED=true
+fi
+
+# ── 3. Structural Compatibility Fingerprints ──────────────────────────────────
+echo ""
+echo "── 3. Structural Compatibility Fingerprints ──────────────────────────────────"
+
+TOTAL_CHECKS=$((TOTAL_CHECKS+1))
+COMPAT_RESULT=$(flatpak run --command=node "${APP_ID}" -e '
+const fs = require("fs");
+const target = "/app/libexec/stremio/server.js";
+if (!fs.existsSync(target)) {
+  console.log("MISSING_TARGET");
+  process.exit(1);
+}
+const code = fs.readFileSync(target, "utf8");
+const p1 = (code.split("var rechokeIntervalId, rechokeSlots = !1 === opts.uploads || 0 === opts.uploads ? 0 : +opts.uploads || 5").length - 1);
+const p2 = (code.split("MIN_PEERS_FOR_STABLE = isPositiveInteger(settings.btMinPeersForStable) ? settings.btMinPeersForStable : 5, defaults = {").length - 1);
+const p3 = (code.split("uploadPipe.push(engine.store.read, index, (function(err, buffer) {").length - 1);
+
+if (p1 === 1 && p2 === 1 && p3 === 1) {
+  console.log("MATCH_EXACT_ONE");
+  process.exit(0);
+} else {
+  console.log(`MISMATCH: p1=${p1} p2=${p2} p3=${p3}`);
+  process.exit(2);
+}
+' 2>/dev/null || echo "CHECK_FAILED")
+
+if [ "${COMPAT_RESULT}" = "MATCH_EXACT_ONE" ]; then
+  echo "  [PASS] All 3 structural invariants matched exactly once in active server.js"
+  PASSED_CHECKS=$((PASSED_CHECKS+1))
+  STATIC_OK=true
+else
+  echo "  [FAIL] Compatibility fingerprint check failed: ${COMPAT_RESULT}"
+  ERRORS=$((ERRORS+1))
+  INCOMPATIBLE=true
+fi
+
+# ── 4. Runtime Controller & IPC Verification ──────────────────────────────────
+echo ""
+echo "── 4. Runtime Controller & IPC Verification ──────────────────────────────────"
+
+TOTAL_CHECKS=$((TOTAL_CHECKS+1))
+# Check if any stremio server / node process is listening on 11470
+if curl -s --max-time 1 "http://127.0.0.1:11470/heartbeat" &>/dev/null || curl -s --max-time 1 "http://127.0.0.1:11470/zero-upload-controller" &>/dev/null; then
+  RUNTIME_RUNNING=true
+  PASSED_CHECKS=$((PASSED_CHECKS+1))
+  
+  # Authoritative controller loopback endpoint check
+  TOTAL_CHECKS=$((TOTAL_CHECKS+1))
+  CTRL_RESP=$(curl -s --max-time 1 "http://127.0.0.1:11470/zero-upload-controller" 2>/dev/null || curl -s --max-time 1 "http://127.0.0.1:11470/mute-status" 2>/dev/null || echo "")
+  
+  if [ -n "${CTRL_RESP}" ] && echo "${CTRL_RESP}" | grep -q '"active":true'; then
+    CTRL_VER=$(echo "${CTRL_RESP}" | jq -r '.version // "unknown"' 2>/dev/null || echo "1.2.0")
+    echo "  [PASS] Stremio server responded to /zero-upload-controller (Controller Version: ${CTRL_VER})"
+    PASSED_CHECKS=$((PASSED_CHECKS+1))
+    CONTROLLER_RESPONSIVE=true
+  else
+    echo "  [FAIL] Stremio server is running but zero-upload controller is NOT active (STOCK SERVER DETECTED)"
+    ERRORS=$((ERRORS+1))
+  fi
+
+  TOTAL_CHECKS=$((TOTAL_CHECKS+1))
+  HB=$(curl -s --max-time 1 "http://127.0.0.1:11470/heartbeat" 2>/dev/null || echo "")
+  if echo "${HB}" | grep -q '"success":true'; then
+    echo "  [PASS] Local IPC heartbeat endpoint healthy (http://127.0.0.1:11470/heartbeat)"
+    PASSED_CHECKS=$((PASSED_CHECKS+1))
+    HEARTBEAT_OK=true
+  else
+    echo "  [WARN] Heartbeat endpoint returned unexpected payload: ${HB}"
+    WARNS=$((WARNS+1))
+  fi
+else
+  echo "  [INFO] Stremio server is not running right now. (Launch Stremio to verify runtime state)"
+fi
+
+# ── 5. Final State Classification ─────────────────────────────────────────────
+echo ""
+echo "================================================================================"
+
+if [ "$INCOMPATIBLE" = true ]; then
+  echo " STATUS: INCOMPATIBLE"
+  echo " Verdict: Stremio server code structure has changed. Controller will fail closed."
+  echo " Action:  Run './scripts/diagnose.sh' and report compatibility mismatch."
   echo "================================================================================"
-  echo " STREMIO ZERO-UPLOAD CONTROLLER — OPERATIONAL HEALTH CHECK"
+  exit 2
+elif [ "$NOT_INSTALLED" = true ]; then
+  echo " STATUS: NOT INSTALLED"
+  echo " Verdict: Stremio Mute is not fully installed on this system."
+  echo " Action:  Run './scripts/install.sh' to install."
   echo "================================================================================"
-fi
-
-section "1. Controller File & Syntax Integrity"
-WRAPPER_HOST="${HOME}/.var/app/com.stremio.Stremio/.stremio-server/server-wrapper.js"
-if [ -f "$WRAPPER_HOST" ]; then
-  VERSION=$(grep "CONTROLLER_VERSION = " "$WRAPPER_HOST" 2>/dev/null | head -1 | cut -d"'" -f2 || echo "1.2.0")
-  ok "server-wrapper.js exists (Version: ${VERSION})"
-  
-  PERMS=$(stat -c "%a" "$WRAPPER_HOST" 2>/dev/null || echo "unknown")
-  if [ "$PERMS" = "644" ] || [ "$PERMS" = "600" ] || [ "$PERMS" = "755" ]; then
-    ok "Permissions are safe ($PERMS)"
-  else
-    warn "Permissions ($PERMS) - recommended: 0644"
-  fi
-  
-  if node -c "$WRAPPER_HOST" 2>/dev/null; then
-    ok "server-wrapper.js JavaScript syntax is valid"
-  else
-    fail "server-wrapper.js syntax validation failed"
-  fi
-else
-  fail "server-wrapper.js not found at $WRAPPER_HOST (run ./scripts/install.sh)"
-fi
-
-section "2. Flatpak Installation & User Override"
-if flatpak info com.stremio.Stremio &>/dev/null; then
-  FLATPAK_VER=$(flatpak info com.stremio.Stremio 2>/dev/null | grep "^Version:" | awk '{print $2}' || echo "Installed")
-  ok "com.stremio.Stremio is installed (Flatpak Version: $FLATPAK_VER)"
-  
-  # Read Flatpak user override file directly for deterministic verification
-  OVERRIDE_FILE="${HOME}/.local/share/flatpak/overrides/com.stremio.Stremio"
-  if [ -f "$OVERRIDE_FILE" ]; then
-    SERVER_ENV=$(grep -E "^SERVER_PATH=" "$OVERRIDE_FILE" 2>/dev/null || true)
-    if echo "$SERVER_ENV" | grep -q "server-wrapper.js"; then
-      ok "Flatpak override active in ${OVERRIDE_FILE} (${SERVER_ENV})"
-    else
-      fail "SERVER_PATH override malformed or missing in ${OVERRIDE_FILE}: '${SERVER_ENV}'"
-    fi
-  else
-    # Fallback to querying flatpak CLI
-    CLI_OVERRIDE=$(flatpak override --user --show com.stremio.Stremio 2>/dev/null | grep "^SERVER_PATH=" || true)
-    if echo "$CLI_OVERRIDE" | grep -q "server-wrapper.js"; then
-      ok "Flatpak override active via CLI (${CLI_OVERRIDE})"
-    else
-      fail "Flatpak user override file missing and CLI reports no SERVER_PATH override"
-    fi
-  fi
-else
-  fail "Flatpak package com.stremio.Stremio is not installed"
-fi
-
-section "3. Structural Compatibility Fingerprints"
-# Verify that all 3 fingerprints exist EXACTLY ONCE in active /app/libexec/stremio/server.js
-FP_CHECK=$(flatpak run --command=node com.stremio.Stremio -e "
-const fs = require('fs');
-try {
-  const code = fs.readFileSync('/app/libexec/stremio/server.js', 'utf8');
-  const p1 = 'var rechokeIntervalId, rechokeSlots = !1 === opts.uploads || 0 === opts.uploads ? 0 : +opts.uploads || 5';
-  const p2 = 'MIN_PEERS_FOR_STABLE = isPositiveInteger(settings.btMinPeersForStable) ? settings.btMinPeersForStable : 5, defaults = {';
-  const p3 = 'uploadPipe.push(engine.store.read, index, (function(err, buffer) {';
-  
-  const c1 = code.split(p1).length - 1;
-  const c2 = code.split(p2).length - 1;
-  const c3 = code.split(p3).length - 1;
-  
-  if (c1 === 1 && c2 === 1 && c3 === 1) {
-    console.log('FP_MATCH_EXACT_1');
-  } else {
-    console.log('FP_MISMATCH:' + JSON.stringify({rechokeSlots: c1, getDefaults: c2, wireRequest: c3}));
-  }
-} catch(e) { console.log('ERROR:' + e.message); }
-" 2>/dev/null || true)
-
-if [ "$FP_CHECK" = "FP_MATCH_EXACT_1" ]; then
-  ok "All 3 structural invariants matched exactly once in active server.js"
-else
-  fail "Structural compatibility check failed: $FP_CHECK"
-fi
-
-section "4. Runtime Controller & IPC Verification"
-# Authoritative check: Query controller status endpoint
-CTRL_RESP=$(curl -s --max-time 2 http://127.0.0.1:11470/zero-upload-controller 2>/dev/null || echo "{}")
-if echo "$CTRL_RESP" | grep -q '"active":true'; then
-  RUNTIME_ACTIVE=1
-  CTRL_VER=$(echo "$CTRL_RESP" | jq -r '.version // "unknown"' 2>/dev/null || echo "active")
-  ok "Running Stremio server responded to /zero-upload-controller (Controller Version: $CTRL_VER)"
-  
-  # Check standard IPC heartbeat
-  HEARTBEAT=$(curl -s --max-time 2 http://127.0.0.1:11470/heartbeat 2>/dev/null || echo "{}")
-  if echo "$HEARTBEAT" | grep -q '"success":true'; then
-    ok "Local IPC heartbeat endpoint healthy (http://127.0.0.1:11470/heartbeat)"
-  else
-    warn "Local IPC heartbeat responded unexpectedly: $HEARTBEAT"
-  fi
-  
-  # Supplementary check: query stats.json
-  STATS=$(curl -s --max-time 2 http://127.0.0.1:11470/stats.json 2>/dev/null || echo "{}")
-  TOTAL_UPLOADED=$(echo "$STATS" | jq '[.[].uploaded // 0] | add // 0' 2>/dev/null || echo "0")
-  ok "Supplementary engine stats: total uploaded = ${TOTAL_UPLOADED} bytes"
-else
-  # Check if Stremio server is listening on port 11470 without controller
-  STOCK_HB=$(curl -s --max-time 2 http://127.0.0.1:11470/heartbeat 2>/dev/null || echo "{}")
-  if echo "$STOCK_HB" | grep -q '"success":true'; then
-    fail "Stremio server is running on port 11470 but did NOT respond to /zero-upload-controller (Unprotected stock server active!)"
-  else
-    warn "Stremio server is not running right now. (Launch Stremio to verify runtime IPC)"
-  fi
-fi
-
-section "5. Desktop & Launch Vector Integration"
-ok "KDE Plasma launcher, KRunner, and CLI inherit Flatpak user environment override"
-
-if [ "$QUIET" -eq 0 ]; then
-  echo ""
-  echo "================================================================================"
-fi
-
-if [ "$FAIL" -gt 0 ]; then
-  [ "$QUIET" -eq 0 ] && {
-    echo " STATUS: NOT PROTECTED (ACTION REQUIRED)"
-    echo " Verdict: $FAIL critical validation failure(s) detected. Review diagnostics above."
-    echo "================================================================================"
-  }
   exit 1
-elif [ "$RUNTIME_ACTIVE" -eq 1 ]; then
-  [ "$QUIET" -eq 0 ] && {
-    echo " STATUS: RUNTIME VERIFIED (ZERO UPLOAD ENFORCED)"
-    echo " Verdict: Stremio server is running with active zero-upload controller v${VERSION:-1.2.0}."
+elif [ "$RUNTIME_RUNNING" = true ]; then
+  if [ "$CONTROLLER_RESPONSIVE" = true ] && [ "$HEARTBEAT_OK" = true ]; then
+    echo " STATUS: RUNTIME VERIFIED (UPLOADS MUTED)"
+    echo " Verdict: Stremio server is running with active upload suppression."
     echo "================================================================================"
-  }
+    exit 0
+  else
+    echo " STATUS: NOT PROTECTED"
+    echo " Verdict: Stremio server is active without controller protection!"
+    echo " Action:  Run './scripts/install.sh' to re-apply the Flatpak override."
+    echo "================================================================================"
+    exit 1
+  fi
+elif [ "$STATIC_OK" = true ] && [ "$ERRORS" -eq 0 ]; then
+  echo " STATUS: CONFIGURED (STATIC VALIDATION PASSED)"
+  echo " Verdict: Stremio Mute is correctly installed and ready."
+  echo "          Launch Stremio and play a stream to verify runtime protection."
+  echo "================================================================================"
   exit 0
 else
-  [ "$QUIET" -eq 0 ] && {
-    echo " STATUS: CONFIGURED (STATIC VALIDATION PASSED)"
-    echo " Verdict: Zero-upload controller is correctly installed and ready."
-    echo "          Start Stremio to verify runtime protection."
-    echo "================================================================================"
-  }
-  exit 0
+  echo " STATUS: ERROR"
+  echo " Verdict: Incomplete or ambiguous operational state detected (${ERRORS} errors)."
+  echo " Action:  Run './scripts/diagnose.sh' for details."
+  echo "================================================================================"
+  exit 1
 fi

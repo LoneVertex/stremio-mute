@@ -1,6 +1,6 @@
 ---
 name: Compatibility Report
-about: Report compatibility findings for a new Stremio or OS version
+about: Report compatibility findings for a new Stremio release or Linux distribution
 title: '[COMPATIBILITY] '
 labels: compatibility
 assignees: ''
@@ -12,11 +12,11 @@ assignees: ''
 - Stremio Version:
 - Flatpak Version:
 
-**Diagnostics**
-Paste the output of `./scripts/diagnose.sh`:
+**Diagnostic Snapshot**
+Run `./scripts/diagnose.sh` and paste the output below:
 
 ```text
-(Paste output here)
+(Paste output of ./scripts/diagnose.sh here)
 ```
 
 **Verification Results**

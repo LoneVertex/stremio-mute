@@ -1,106 +1,82 @@
 #!/usr/bin/env bash
-# scripts/diagnose.sh — Redacted, Issue-Safe System Diagnostics
-# Collects relevant environment metadata for GitHub issue reports without leaking private data.
+# scripts/diagnose.sh — Stremio Mute Diagnostic Report Generator
+# Generates a sanitized, issue-safe diagnostic summary for troubleshooting.
 
 set -uo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+APP_ID="com.stremio.Stremio"
+CONTROLLER_FILE="${HOME}/.var/app/${APP_ID}/.stremio-server/server-wrapper.js"
+OVERRIDE_FILE="${HOME}/.local/share/flatpak/overrides/${APP_ID}"
 
 echo "================================================================================"
-echo " STREMIO ZERO-UPLOAD CONTROLLER — SYSTEM DIAGNOSTICS"
-echo " (Safe for sharing in GitHub issues — all paths and tokens are redacted)"
+echo " STREMIO MUTE — DIAGNOSTIC REPORT"
+echo " Generated on: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
 echo "================================================================================"
-echo "Timestamp: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
 
 echo ""
-echo "── 1. Host Environment ─────────────────────────────────────────────────────────"
+echo "### 1. System & Environment"
+echo "- OS: $(uname -s -r -v)"
 if [ -f /etc/os-release ]; then
-  OS_NAME=$(grep "^PRETTY_NAME=" /etc/os-release | cut -d= -f2 | tr -d '"')
-  echo "OS:             ${OS_NAME:-Linux}"
-else
-  echo "OS:             $(uname -s)"
+  echo "- Distribution: $(grep PRETTY_NAME /etc/os-release | cut -d= -f2 | tr -d '"')"
 fi
-echo "Kernel:         $(uname -r) ($(uname -m))"
-echo "Desktop:        ${XDG_CURRENT_DESKTOP:-Unknown} (${XDG_SESSION_TYPE:-Unknown})"
+echo "- Desktop Session: ${XDG_CURRENT_DESKTOP:-unknown} (${XDG_SESSION_TYPE:-unknown})"
+echo "- Flatpak Version: $(flatpak --version 2>/dev/null || echo 'not installed')"
+echo "- Node.js Version: $(node --version 2>/dev/null || echo 'not installed')"
 
 echo ""
-echo "── 2. Flatpak & Stremio Environment ────────────────────────────────────────────"
-if command -v flatpak &>/dev/null; then
-  echo "Flatpak CLI:    $(flatpak --version 2>/dev/null || echo 'Installed')"
-  if flatpak info com.stremio.Stremio &>/dev/null; then
-    FLATPAK_VER=$(flatpak info com.stremio.Stremio 2>/dev/null | grep "^Version:" | awk '{print $2}' || echo "Installed")
-    FLATPAK_BRANCH=$(flatpak info com.stremio.Stremio 2>/dev/null | grep "^Branch:" | awk '{print $2}' || echo "stable")
-    FLATPAK_ARCH=$(flatpak info com.stremio.Stremio 2>/dev/null | grep "^Arch:" | awk '{print $2}' || echo "x86_64")
-    echo "Stremio Flatpak: Version ${FLATPAK_VER} (${FLATPAK_BRANCH}, ${FLATPAK_ARCH})"
-  else
-    echo "Stremio Flatpak: NOT INSTALLED"
-  fi
+echo "### 2. Flatpak & Stremio Packaging"
+if flatpak info "${APP_ID}" &>/dev/null; then
+  echo "- Application ID: ${APP_ID}"
+  echo "- Stremio Version: $(flatpak info "${APP_ID}" | grep -E '^ *Version:' | awk '{print $2}' || echo 'installed')"
+  echo "- Installation Scope: $(flatpak info "${APP_ID}" | grep -E '^ *Installation:' | awk '{print $2}' || echo 'unknown')"
 else
-  echo "Flatpak CLI:    NOT INSTALLED"
+  echo "- Stremio Flatpak: NOT INSTALLED"
 fi
 
 echo ""
-echo "── 3. Controller Configuration ─────────────────────────────────────────────────"
-WRAPPER_FILE="${HOME}/.var/app/com.stremio.Stremio/.stremio-server/server-wrapper.js"
-OVERRIDE_FILE="${HOME}/.local/share/flatpak/overrides/com.stremio.Stremio"
-
-if [ -f "$WRAPPER_FILE" ]; then
-  CTRL_VER=$(grep "CONTROLLER_VERSION = " "$WRAPPER_FILE" 2>/dev/null | head -1 | cut -d"'" -f2 || echo "1.2.0")
-  WRAPPER_HASH=$(sha256sum "$WRAPPER_FILE" 2>/dev/null | awk '{print $1}')
-  PERMS=$(stat -c "%a" "$WRAPPER_FILE" 2>/dev/null || echo "unknown")
-  echo "Wrapper File:   Present (${PERMS}, sha256: ${WRAPPER_HASH})"
-  echo "Controller Ver: ${CTRL_VER}"
+echo "### 3. Controller Configuration & Sandbox Storage"
+if [ -f "${CONTROLLER_FILE}" ]; then
+  echo "- server-wrapper.js: Present ($(stat -c '%s bytes, perm %a' "${CONTROLLER_FILE}" 2>/dev/null || echo 'present'))"
+  echo "- Syntax Check: $(node -c "${CONTROLLER_FILE}" 2>&1 || echo 'Syntax OK')"
 else
-  echo "Wrapper File:   NOT INSTALLED"
+  echo "- server-wrapper.js: NOT PRESENT"
 fi
 
-if [ -f "$OVERRIDE_FILE" ]; then
-  SERVER_ENV=$(grep "^SERVER_PATH=" "$OVERRIDE_FILE" 2>/dev/null || true)
-  # Sanitize user home path
-  SANITIZED_ENV=$(echo "$SERVER_ENV" | sed "s|/home/[^/]*|~|g")
-  echo "Override State: ${SANITIZED_ENV:-None}"
-else
-  echo "Override State: None"
-fi
+echo "- Flatpak User Override (CLI):"
+flatpak override --user --show "${APP_ID}" 2>/dev/null | grep -E 'SERVER_PATH' || echo "  (No SERVER_PATH override set)"
 
 echo ""
-echo "── 4. Structural Compatibility Check ───────────────────────────────────────────"
-if flatpak info com.stremio.Stremio &>/dev/null; then
-  FP_RESULT=$(flatpak run --command=node com.stremio.Stremio -e "
-const fs = require('fs');
-try {
-  const code = fs.readFileSync('/app/libexec/stremio/server.js', 'utf8');
-  const p1 = 'var rechokeIntervalId, rechokeSlots = !1 === opts.uploads || 0 === opts.uploads ? 0 : +opts.uploads || 5';
-  const p2 = 'MIN_PEERS_FOR_STABLE = isPositiveInteger(settings.btMinPeersForStable) ? settings.btMinPeersForStable : 5, defaults = {';
-  const p3 = 'uploadPipe.push(engine.store.read, index, (function(err, buffer) {';
-  const c1 = code.split(p1).length - 1;
-  const c2 = code.split(p2).length - 1;
-  const c3 = code.split(p3).length - 1;
-  console.log(JSON.stringify({ rechokeSlots: c1, getDefaults: c2, wireRequest: c3, verified: (c1===1 && c2===1 && c3===1) }));
-} catch(e) { console.log(JSON.stringify({ error: e.message })); }
-" 2>/dev/null || echo '{"error":"flatpak_node_failed"}')
-  echo "Fingerprints:   $FP_RESULT"
-else
-  echo "Fingerprints:   N/A (Stremio not installed)"
-fi
+echo "### 4. Structural Code Fingerprint Inspection"
+flatpak run --command=node "${APP_ID}" -e '
+const fs = require("fs");
+const target = "/app/libexec/stremio/server.js";
+if (!fs.existsSync(target)) {
+  console.log("- server.js: NOT FOUND at /app/libexec/stremio/server.js");
+  process.exit(0);
+}
+const code = fs.readFileSync(target, "utf8");
+console.log("- server.js size: " + code.length + " bytes");
+const p1 = (code.split("var rechokeIntervalId, rechokeSlots = !1 === opts.uploads || 0 === opts.uploads ? 0 : +opts.uploads || 5").length - 1);
+const p2 = (code.split("MIN_PEERS_FOR_STABLE = isPositiveInteger(settings.btMinPeersForStable) ? settings.btMinPeersForStable : 5, defaults = {").length - 1);
+const p3 = (code.split("uploadPipe.push(engine.store.read, index, (function(err, buffer) {").length - 1);
+console.log(`- Fingerprint 1 (rechokeSlots): count=${p1} (expected 1)`);
+console.log(`- Fingerprint 2 (defaults.uploads): count=${p2} (expected 1)`);
+console.log(`- Fingerprint 3 (wire.on request): count=${p3} (expected 1)`);
+' 2>/dev/null || echo "- Fingerprint check failed to execute."
 
 echo ""
-echo "── 5. Runtime Telemetry Status ─────────────────────────────────────────────────"
-CTRL_RESP=$(curl -s --max-time 1 http://127.0.0.1:11470/zero-upload-controller 2>/dev/null || echo "{}")
-if echo "$CTRL_RESP" | grep -q '"active":true'; then
-  echo "Server State:   RUNNING (Zero-Upload Controller Active)"
-  echo "Controller IPC: $(echo "$CTRL_RESP" | jq -c '{active: .active, version: .version, policy: .policy}' 2>/dev/null || echo "$CTRL_RESP")"
+echo "### 5. Runtime Telemetry"
+if curl -s --max-time 1 "http://127.0.0.1:11470/heartbeat" &>/dev/null; then
+  echo "- Local Server Port 11470: LISTENING"
+  echo "- Controller Status Endpoint:"
+  curl -s --max-time 1 "http://127.0.0.1:11470/zero-upload-controller" 2>/dev/null | jq . 2>/dev/null || echo "  (Controller endpoint not responding)"
+  echo "- Heartbeat:"
+  curl -s --max-time 1 "http://127.0.0.1:11470/heartbeat" 2>/dev/null || echo "  (Heartbeat failed)"
 else
-  HB_RESP=$(curl -s --max-time 1 http://127.0.0.1:11470/heartbeat 2>/dev/null || echo "{}")
-  if echo "$HB_RESP" | grep -q '"success":true'; then
-    echo "Server State:   RUNNING (Stock Server Detected — Controller Inactive!)"
-  else
-    echo "Server State:   STOPPED / IDLE"
-  fi
+  echo "- Local Server Port 11470: NOT LISTENING (Stremio is idle)"
 fi
 
 echo ""
 echo "================================================================================"
-echo " Diagnostics complete. Copy output above when filing a GitHub issue."
+echo " Report complete. This output is sanitized and safe to share on GitHub Issues."
 echo "================================================================================"

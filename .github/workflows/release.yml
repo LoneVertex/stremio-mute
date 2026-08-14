@@ -5,6 +5,9 @@ on:
     tags:
       - 'v*'
 
+permissions:
+  contents: read
+
 jobs:
   release:
     name: Build & Publish Release Assets
@@ -22,9 +25,15 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Validate Test Suite Before Packaging
+        run: |
+          chmod +x scripts/*.sh tests/**/*.sh
+          bash tests/static/test_syntax.sh
+          bash tests/compatibility/test_compatibility_fixtures.sh
+          bash scripts/repo-audit.sh
+
       - name: Package Release
         run: |
-          chmod +x scripts/*.sh
           bash scripts/package.sh
 
       - name: Create GitHub Release

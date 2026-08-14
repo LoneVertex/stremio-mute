@@ -1,41 +1,59 @@
-# Troubleshooting Guide — Stremio Zero-Upload Controller
+# Troubleshooting Guide — Stremio Mute
 
-This guide covers common issues, diagnostic steps, and resolutions.
+This guide covers common diagnostic workflows, error states, and resolutions.
 
 ---
 
 ## 1. Quick Diagnosis
 
-Always start by running:
+Always begin troubleshooting by running:
 ```bash
 ./scripts/verify.sh
 ```
-and
+and generating a diagnostic snapshot:
 ```bash
 ./scripts/diagnose.sh
 ```
 
 ---
 
-## 2. Common Issues & Solutions
+## 2. Interpreting Status Output
 
-### Issue: `STATUS: NOT PROTECTED` in `verify.sh`
-- **Cause 1:** Stremio Flatpak override is missing.
-  - **Fix:** Run `./scripts/install.sh` to reinstall the override.
-- **Cause 2:** Stremio was updated and internal code structure changed.
-  - **Fix:** Check `verify.sh` output under section 3 (Compatibility Fingerprints). If mismatch is reported, see [COMPATIBILITY.md](COMPATIBILITY.md).
+### `STATUS: CONFIGURED (STATIC VALIDATION PASSED)`
+- **Meaning:** Stremio Mute is correctly installed and all structural code fingerprints match your installed Stremio version. Stremio is currently idle.
+- **Action:** Launch Stremio and start playing any video stream. Run `./scripts/verify.sh` again to confirm runtime enforcement.
 
-### Issue: Stremio Fails to Launch or Exits Immediately
-- **Cause:** Compatibility mismatch triggering the fail-closed protection.
-- **Verification:** Run `flatpak run com.stremio.Stremio` from a terminal and look for `[Upload-Control] FATAL COMPATIBILITY ERROR`.
-- **Fix:** The controller safely refused to run because `server.js` was modified. Run `./scripts/rollback.sh` to revert to stock Stremio while awaiting a controller update.
+### `STATUS: RUNTIME VERIFIED (UPLOADS MUTED)`
+- **Meaning:** Stremio is running, the streaming engine is active, and the authoritative loopback controller endpoint on `127.0.0.1:11470/zero-upload-controller` confirmed that upload suppression invariants are active.
+- **Action:** No action required. Protection is active.
 
-### Issue: Video Plays but `verify.sh` Reports `STATUS: CONFIGURED`
-- **Cause:** Stremio GUI is open, but the streaming engine is idle or using a cached file without active streaming server sockets.
-- **Verification:** Start playing any stream, then run `./scripts/verify.sh` again. It should report `STATUS: RUNTIME VERIFIED (ZERO UPLOAD ENFORCED)`.
-
-### Issue: `Permission denied` on Scripts
-- **Fix:** Ensure execution permissions are set:
+### `STATUS: NOT PROTECTED`
+- **Meaning:** Stremio's streaming server is running on `127.0.0.1:11470`, but the controller status endpoint is not responding, indicating stock unprotected Stremio is executing.
+- **Possible Causes:**
+  - Flatpak environment override `SERVER_PATH` was cleared or not applied.
+  - Stremio was launched in a manner that bypassed user Flatpak overrides.
+- **Fix:** Re-run the installer:
   ```bash
-  chmod +x scripts/*.sh
+  ./scripts/install.sh
   ```
+
+### `STATUS: INCOMPATIBLE`
+- **Meaning:** Stremio was updated, and the minified structure of `/app/libexec/stremio/server.js` no longer matches the expected code fingerprints.
+- **Behavior:** The controller **fails closed** (`process.exit(1)`), preventing unmuted uploads.
+- **Fix:** Run `./scripts/diagnose.sh` to capture the fingerprint match counts and submit a [Compatibility Issue](https://github.com/LoneVertex/stremio-mute/issues). To use stock Stremio in the interim, run `./scripts/rollback.sh`.
+
+### `STATUS: NOT INSTALLED`
+- **Meaning:** The controller wrapper file or Flatpak user override is missing.
+- **Fix:** Run `./scripts/install.sh`.
+
+---
+
+## 3. Common Error Scenarios
+
+### Error: `Pre-flight compatibility validation failed` during `install.sh`
+- **Cause:** The installer detected that Stremio's bundled `server.js` does not match the required fingerprints.
+- **Protection:** The installer aborted **before** staging files or applying overrides, keeping your installation safe and unmodified.
+
+### Error: Stremio Streaming Server Exits on Launch
+- **Cause:** Fail-closed protection triggered due to code mismatch.
+- **Diagnosis:** Run `flatpak run com.stremio.Stremio` in a terminal to view error logs.

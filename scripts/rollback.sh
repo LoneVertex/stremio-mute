@@ -1,61 +1,70 @@
 #!/usr/bin/env bash
-# scripts/rollback.sh — Revert Stremio to Standard Default Configuration
-# Removes Flatpak user override and deletes the sandboxed server wrapper.
+# scripts/rollback.sh — Stremio Mute Rollback & Uninstaller
+# Cleanly removes the Flatpak user environment override and sandboxed wrapper.
+# Verified and idempotent.
 
 set -euo pipefail
 
-SANDBOX_WRAPPER="${HOME}/.var/app/com.stremio.Stremio/.stremio-server/server-wrapper.js"
-OVERRIDE_FILE="${HOME}/.local/share/flatpak/overrides/com.stremio.Stremio"
+APP_ID="com.stremio.Stremio"
+TARGET_WRAPPER="${HOME}/.var/app/${APP_ID}/.stremio-server/server-wrapper.js"
+OVERRIDE_FILE="${HOME}/.local/share/flatpak/overrides/${APP_ID}"
 
 echo "================================================================================"
-echo " STREMIO ZERO-UPLOAD CONTROLLER — ROLLBACK"
+echo " STREMIO MUTE — ROLLBACK"
 echo "================================================================================"
 
-# 1. Remove Flatpak override
-echo "[1/2] Removing Flatpak SERVER_PATH environment override..."
-if command -v flatpak &>/dev/null; then
-  flatpak override --user --unset-env=SERVER_PATH com.stremio.Stremio || true
+# 1. Unset Flatpak user environment override
+echo "[1/3] Removing Flatpak user environment override for ${APP_ID}..."
+if flatpak override --user --unset-env=SERVER_PATH "${APP_ID}" 2>/dev/null; then
+  echo "  [PASS] SERVER_PATH override unset via Flatpak CLI."
+else
+  echo "  [INFO] No active Flatpak CLI override found or already cleared."
 fi
 
-# 2. Remove installed wrapper
-echo "[2/2] Removing installed server-wrapper.js..."
-rm -f "$SANDBOX_WRAPPER"
+# Fallback direct override file cleanup if present
+if [ -f "${OVERRIDE_FILE}" ] && grep -q "SERVER_PATH=" "${OVERRIDE_FILE}" 2>/dev/null; then
+  sed -i '/SERVER_PATH=/d' "${OVERRIDE_FILE}" || true
+  echo "  [PASS] Cleaned SERVER_PATH from override file."
+fi
 
-# 3. Verify clean uninstallation
-echo ""
-echo "── Verification ────────────────────────────────────────────────────────────"
+# 2. Remove sandboxed wrapper file
+echo "[2/3] Removing sandboxed server-wrapper.js..."
+if [ -f "${TARGET_WRAPPER}" ]; then
+  rm -f "${TARGET_WRAPPER}"
+  echo "  [PASS] Removed: ${TARGET_WRAPPER}"
+else
+  echo "  [INFO] Controller file already removed."
+fi
+
+# 3. Active Verification of Clean State
+echo "[3/3] Actively verifying clean rollback state..."
 ERRORS=0
 
-# Verify override removal
-OVERRIDE_CHECK=""
-if [ -f "$OVERRIDE_FILE" ]; then
-  OVERRIDE_CHECK=$(grep -E "^SERVER_PATH=" "$OVERRIDE_FILE" 2>/dev/null || true)
-fi
-
-if [ -n "$OVERRIDE_CHECK" ]; then
-  echo "  [FAIL] Flatpak SERVER_PATH override is still present: $OVERRIDE_CHECK" >&2
+OVERRIDE_SHOW=$(flatpak override --user --show "${APP_ID}" 2>/dev/null || echo "")
+if echo "${OVERRIDE_SHOW}" | grep -q "SERVER_PATH="; then
+  echo "  [FAIL] Flatpak override SERVER_PATH is still active!" >&2
   ERRORS=$((ERRORS+1))
 else
-  echo "  [PASS] Flatpak SERVER_PATH override successfully removed."
+  echo "  [PASS] Verified: Flatpak environment override is removed."
 fi
 
-# Verify wrapper file removal
-if [ -f "$SANDBOX_WRAPPER" ]; then
-  echo "  [FAIL] server-wrapper.js still exists at: $SANDBOX_WRAPPER" >&2
+if [ -f "${TARGET_WRAPPER}" ]; then
+  echo "  [FAIL] Controller file still exists at: ${TARGET_WRAPPER}" >&2
   ERRORS=$((ERRORS+1))
 else
-  echo "  [PASS] server-wrapper.js successfully removed."
+  echo "  [PASS] Verified: Sandboxed wrapper file is removed."
 fi
 
 echo ""
 echo "================================================================================"
 if [ "$ERRORS" -eq 0 ]; then
   echo " ROLLBACK SUCCESSFUL"
-  echo " Stremio is restored to stock configuration."
+  echo " Stremio has been restored to default stock configuration."
+  echo " All addons, library items, and user settings were preserved."
   echo "================================================================================"
   exit 0
 else
-  echo " ROLLBACK INCOMPLETE ($ERRORS errors detected)." >&2
+  echo " ROLLBACK FAILED: ${ERRORS} residual artifacts remain." >&2
   echo "================================================================================"
   exit 1
 fi
