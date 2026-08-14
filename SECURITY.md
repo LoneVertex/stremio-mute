@@ -1,0 +1,23 @@
+# Security Policy — Stremio Zero-Upload Controller
+
+## Supported Versions
+
+| Version | Supported |
+|---|---|
+| 1.2.x | Yes |
+| < 1.2.0 | No |
+
+---
+
+## Reporting a Vulnerability
+
+If you discover a security issue or unexpected upload leakage in the controller:
+
+1. **Do NOT open a public GitHub issue.**
+2. Report the vulnerability privately to maintainers via GitHub Private Vulnerability Reporting or by contacting `venom010101` on GitHub.
+3. Include:
+   - Stremio Flatpak version and OS details
+   - Output of `./scripts/diagnose.sh`
+   - Reproduction steps and captured packet telemetry if available
+
+We will acknowledge reports within 48 hours and work on a fail-closed fix.
