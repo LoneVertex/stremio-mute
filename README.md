@@ -1,6 +1,6 @@
 # Stremio Zero-Upload Controller
 
-[![CI](https://github.com/venom010101/stremio-zero-upload/actions/workflows/ci.yml/badge.svg)](https://github.com/venom010101/stremio-zero-upload/actions/workflows/ci.yml)
+[![CI](https://github.com/LoneVertex/stremio-zero-upload/actions/workflows/ci.yml/badge.svg)](https://github.com/LoneVertex/stremio-zero-upload/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Platform: Linux Flatpak](https://img.shields.io/badge/Platform-Linux%20Flatpak-orange.svg)](COMPATIBILITY.md)
 [![Status: Version--Sensitive](https://img.shields.io/badge/Compatibility-Version--Sensitive-yellow.svg)](COMPATIBILITY.md)
@@ -64,7 +64,7 @@ This project is strictly a local engine policy enforcement tool. It is **NOT**:
 
 ### 1. Clone the Repository
 ```bash
-git clone https://github.com/venom010101/stremio-zero-upload.git
+git clone https://github.com/LoneVertex/stremio-zero-upload.git
 cd stremio-zero-upload
 ```
 

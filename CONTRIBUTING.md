@@ -26,7 +26,7 @@ We do **NOT** accept contributions that:
 
 1. Fork and clone the repository:
    ```bash
-   git clone https://github.com/venom010101/stremio-zero-upload.git
+   git clone https://github.com/LoneVertex/stremio-zero-upload.git
    cd stremio-zero-upload
    ```
 2. Run the test suite:
