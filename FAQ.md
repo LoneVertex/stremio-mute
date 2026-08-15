@@ -1,4 +1,4 @@
-# Frequently Asked Questions — Stremio Mute v1.2.2
+# Frequently Asked Questions — Stremio Mute v1.2.3
 
 ### Will this reduce or slow down my streaming download speed?
 
@@ -43,7 +43,7 @@ If the result is `INCOMPATIBLE`, run `./scripts/diagnose.sh` and submit a compat
 
 ### Why can the application fail after an old rollback?
 
-Older installations may have left a sandbox-local wrapper or a stale override. v1.2.2 rollback removes the canonical wrapper, the legacy wrapper location, and the project’s exact Flatpak override. Verify removal with:
+Older installations may have left a sandbox-local wrapper or a stale override. v1.2.3 rollback removes the canonical wrapper, the legacy wrapper location, and the project’s exact Flatpak override. Verify removal with:
 
 ```bash
 ./scripts/rollback.sh
@@ -67,7 +67,7 @@ curl -fsS http://127.0.0.1:11470/heartbeat
 curl -fsS http://127.0.0.1:11470/zero-upload-controller
 ```
 
-Missing or malformed telemetry is not proof of protection.
+The endpoint reports the controller version and executing-wrapper SHA256 in addition to the policy state. `verify.sh` rejects a running process whose version or source hash does not match the current repository and installed wrapper. Missing or malformed telemetry is not proof of protection.
 
 ### Does the project require `com.stremio.Service`?
 

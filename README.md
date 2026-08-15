@@ -14,12 +14,12 @@
 
 ## Quickstart
 
-Use the published v1.2.2 checkout for a reproducible installation:
+Use the published v1.2.3 checkout for a reproducible installation:
 
 ```bash
 git clone https://github.com/LoneVertex/stremio-mute.git
 cd stremio-mute
-git checkout v1.2.2
+git checkout v1.2.3
 ./scripts/install.sh
 ./scripts/verify.sh
 ```
@@ -53,7 +53,7 @@ Stremio’s embedded BitTorrent engine fork defaults to allocating upload slots.
 ## How It Works
 
 1. Flatpak’s `SERVER_PATH` environment variable directs Stremio’s launcher to the staged wrapper instead of stock `server.js`.
-2. The installer stages the wrapper at `$HOME/.stremio-server/server-wrapper.js` and stores the **expanded absolute path** in the Flatpak user override. For example, the persisted value may be `/home/current-user/.stremio-server/server-wrapper.js`.
+2. The installer stops any running Stremio process, stages the wrapper at `$HOME/.stremio-server/server-wrapper.js`, and stores the **expanded absolute path** in the Flatpak user override. Stopping first ensures the next launch cannot retain an older in-memory controller version. For example, the persisted value may be `/home/current-user/.stremio-server/server-wrapper.js`.
 3. The wrapper inspects `/app/libexec/stremio/server.js` in memory and requires three structural fingerprints to occur exactly once.
 4. It applies three in-memory modifications: `rechokeSlots = 0`, engine defaults `uploads = 0`, and request-handler neutralization before disk-piece reads.
 5. It compiles and executes the patched server in Node.js process memory without modifying vendor files on disk.
@@ -85,7 +85,7 @@ This project is a local engine-policy enforcement tool. It is not a content prov
 | Layer | Environment | Status | Details |
 |---|---|---|---|
 | **Packaging** | Linux Flatpak (`com.stremio.Stremio`) | **SUPPORTED** | Standard Flathub distribution mechanism |
-| **Controller** | Stremio Mute v1.2.2 | **CURRENT** | Fail-closed wrapper with exact-one structural fingerprints |
+| **Controller** | Stremio Mute v1.2.3 | **CURRENT** | Fail-closed wrapper with exact-one structural fingerprints |
 | **Verified environment** | Fedora 44 + KDE Plasma 6 + Linux 7.1 | **VERIFIED** | Stremio v1.2.0 / EngineFS v4.21.0; this is the verified target evidence, not the controller version |
 | **Other distributions** | Arch Linux, Ubuntu, Debian, openSUSE | **UNVERIFIED** | Expected to work through Flatpak but not independently tested by this project |
 | **Native packages** | `.deb`, `.rpm`, AUR, AppImage | **OUT OF SCOPE** | The implementation is designed for the Flatpak user override |
@@ -103,7 +103,7 @@ Run:
 ```
 
 - **`CONFIGURED`** means the static wrapper, exact absolute override, source match, and compatibility checks are valid while Stremio is idle.
-- **`RUNTIME VERIFIED`** means Stremio is running and the controller endpoint and heartbeat confirm protected execution.
+- **`RUNTIME VERIFIED`** means Stremio is running and the controller endpoint and heartbeat confirm protected execution, while the endpoint version matches `VERSION` and its source SHA256 matches the installed wrapper.
 - **`NOT PROTECTED`** means Stremio is running without complete controller evidence.
 - **`INCOMPATIBLE`** means the bundled engine no longer matches the required structural fingerprints; the wrapper remains fail-closed.
 - **`NOT INSTALLED`** means the wrapper or exact absolute override is missing or incorrect.
@@ -175,7 +175,8 @@ in-memory patched server.js
 torrent engine + local player IPC
 ```
 
-The controller enforces three invariants: zero rechoke upload slots, zero upload defaults, and immediate rejection of peer piece requests before disk reads. If any exact-one fingerprint check fails, the wrapper exits instead of running the unmodified server. For the protocol analysis and rejected network-layer alternatives, see [ARCHITECTURE.md](ARCHITECTURE.md).
+The controller enforces three invariants: zero rechoke upload slots, zero upload defaults, and immediate rejection of peer piece requests before disk reads. Its loopback metadata includes the controller version and executing-wrapper SHA256 so stale in-memory processes can be rejected. If any exact-one fingerprint check fails, the wrapper exits instead of running the unmodified server.
+ For the protocol analysis and rejected network-layer alternatives, see [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ---
 

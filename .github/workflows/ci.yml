@@ -38,6 +38,12 @@ jobs:
       - name: Run Absolute-Path and Lifecycle Regression Tests
         run: bash tests/static/test_absolute_path.sh
 
+      - name: Run Controller Version Provenance Tests
+        run: bash tests/static/test_controller_version.sh
+
+      - name: Run Stale-Process Deployment Regression
+        run: bash tests/static/test_stale_process_install.sh
+
       - name: Run Repository Hygiene Auditor
         run: bash scripts/repo-audit.sh
 

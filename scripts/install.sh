@@ -75,7 +75,15 @@ else
   printf '%s\n' '  [INFO] Host Node.js is unavailable; wrapper bytes and syntax are covered by the project test suite.'
 fi
 
-printf '%s\n' "[5/8] Staging wrapper at ${TARGET_WRAPPER}..."
+printf '%s\n' "[5/8] Stopping any running ${APP_ID} process before deployment..."
+if flatpak ps --columns=application 2>/dev/null | grep -Fxq "${APP_ID}"; then
+  flatpak kill "${APP_ID}"
+  printf '%s\n' '  [PASS] Existing Stremio process stopped so the next launch loads fresh wrapper bytes.'
+else
+  printf '%s\n' '  [INFO] No running Stremio process detected.'
+fi
+
+printf '%s\n' "[6/8] Staging wrapper at ${TARGET_WRAPPER}..."
 mkdir -p "${WRAPPER_DIR}"
 install -m 0644 "${WRAPPER_SRC}" "${TARGET_WRAPPER}"
 if [ "$(stat -c '%a' "${TARGET_WRAPPER}" 2>/dev/null || stat -f '%Lp' "${TARGET_WRAPPER}")" != '644' ]; then
@@ -88,11 +96,11 @@ if ! cmp -s "${WRAPPER_SRC}" "${TARGET_WRAPPER}"; then
 fi
 printf '%s\n' '  [PASS] Wrapper staged with mode 0644 and matching source bytes.'
 
-printf '%s\n' "[6/8] Applying absolute Flatpak user environment override..."
+printf '%s\n' '[7/8] Applying absolute Flatpak user environment override...'
 flatpak override --user --env="SERVER_PATH=${EXPECTED_SERVER_PATH}" "${APP_ID}"
 printf '%s\n' "  [PASS] Requested SERVER_PATH=${EXPECTED_SERVER_PATH}"
 
-printf '%s\n' '[7/8] Verifying the persisted Flatpak override...'
+printf '%s\n' '[8/8] Verifying the persisted Flatpak override...'
 OVERRIDE_SHOW=$(flatpak override --user --show "${APP_ID}" 2>/dev/null || true)
 OVERRIDE_LINE=$(printf '%s\n' "${OVERRIDE_SHOW}" | grep -E '(^|[[:space:]])SERVER_PATH=' | tail -n 1 || true)
 ACTUAL_SERVER_PATH="${OVERRIDE_LINE#*SERVER_PATH=}"
@@ -102,7 +110,7 @@ if [ "${ACTUAL_SERVER_PATH}" != "${EXPECTED_SERVER_PATH}" ]; then
 fi
 printf '%s\n' "  [PASS] Persisted SERVER_PATH exactly matches ${EXPECTED_SERVER_PATH}"
 
-printf '%s\n' '[8/8] Running operational verification...'
+printf '%s\n' '[9/9] Running operational verification...'
 bash "${SCRIPT_DIR}/verify.sh"
 
 printf '%s\n' '================================================================================'

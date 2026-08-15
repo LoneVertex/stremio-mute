@@ -1,10 +1,10 @@
-# Operational Runbook — Stremio Mute v1.2.2
+# Operational Runbook — Stremio Mute v1.2.3
 
 **Audience:** System administrators, desktop Linux users, and power users
 **System target:** Linux Flatpak Stremio `com.stremio.Stremio`
 **Compatibility model:** Version-sensitive and fail-closed
 
-This runbook is the operational source of truth for the published v1.2.2 documentation. The controller version and the independently verified Stremio engine version are separate; see [COMPATIBILITY.md](../../COMPATIBILITY.md).
+This runbook is the operational source of truth for the published v1.2.3 documentation. The controller version and the independently verified Stremio engine version are separate; see [COMPATIBILITY.md](../../COMPATIBILITY.md).
 
 ---
 
@@ -15,7 +15,7 @@ This runbook is the operational source of truth for the published v1.2.2 documen
 ```bash
 git clone https://github.com/LoneVertex/stremio-mute.git
 cd stremio-mute
-git checkout v1.2.2
+git checkout v1.2.3
 ```
 
 ### 1.2 Confirm prerequisites
@@ -35,7 +35,7 @@ The installer requires Flatpak and an installed `com.stremio.Stremio` applicatio
 ./scripts/verify.sh
 ```
 
-The installer performs compatibility pre-flight before staging the wrapper or changing the Flatpak override. It stages the wrapper at `$HOME/.stremio-server/server-wrapper.js`, computes the current user’s absolute path, persists that path through `flatpak override --user`, verifies the stored value, and runs the verifier.
+The installer performs compatibility pre-flight before staging the wrapper or changing the Flatpak override. It stops any running Stremio process to prevent stale in-memory controller metadata, stages the wrapper at `$HOME/.stremio-server/server-wrapper.js`, computes the current user’s absolute path, persists that path through `flatpak override --user`, verifies the stored value, and runs the verifier.
 
 When Stremio is stopped, the expected state is:
 
@@ -91,7 +91,7 @@ The expected protected running state is:
 STATUS: RUNTIME VERIFIED
 ```
 
-This state requires the controller endpoint and heartbeat to respond. If Stremio is stopped, `CONFIGURED` is correct. Do not treat `ERROR`, `NOT PROTECTED`, or missing telemetry as proof of zero upload.
+This state requires the controller endpoint and heartbeat to respond, the endpoint version to match the repository `VERSION`, and the endpoint source SHA256 to match the installed wrapper bytes. If Stremio is stopped, `CONFIGURED` is correct. Do not treat `ERROR`, `NOT PROTECTED`, stale metadata, or missing telemetry as proof of zero upload.
 
 ### 3.1 Restarting Stremio
 
@@ -175,7 +175,7 @@ curl -fsS http://127.0.0.1:11470/heartbeat
 curl -fsS http://127.0.0.1:11470/zero-upload-controller
 ```
 
-If either endpoint is unavailable, do not claim runtime protection. Consult [TROUBLESHOOTING.md](../../TROUBLESHOOTING.md) for state-specific handling.
+If either endpoint is unavailable, reports an older controller version, or reports a source hash different from the installed wrapper, do not claim runtime protection. Stop Stremio, rerun the installer, relaunch it, and consult [TROUBLESHOOTING.md](../../TROUBLESHOOTING.md) for state-specific handling.
 
 ---
 
@@ -199,7 +199,7 @@ After rollback, reinstall from the published checkout:
 
 ```bash
 cd ~/stremio-mute
-git checkout v1.2.2
+git checkout v1.2.3
 ./scripts/install.sh
 ./scripts/verify.sh
 ```

@@ -4,7 +4,7 @@
 
 | Version | Supported |
 |---|---|
-| 1.2.x, including v1.2.2 | Yes |
+| 1.2.x, including v1.2.3 | Yes |
 | < 1.2.0 | No |
 
 ---
@@ -20,4 +20,4 @@ If you discover a security issue or unexpected upload leakage in the controller:
    - Output of `./scripts/diagnose.sh`
    - Reproduction steps and captured packet telemetry if available
 
-We will acknowledge reports within 48 hours where possible and prioritize fail-closed fixes for confirmed safety issues.
+We will acknowledge reports within 48 hours where possible and prioritize fail-closed fixes for confirmed safety issues. Runtime reports should include the controller endpoint version and source SHA256 when investigating stale or alternate wrapper execution.

@@ -23,10 +23,13 @@
 const fs = require('fs');
 const path = require('path');
 const http = require('http');
+const crypto = require('crypto');
 const Module = require('module');
 
 const CONTROLLER_NAME = 'stremio-mute';
-const CONTROLLER_VERSION = '1.2.2';
+// Authoritative runtime version source; release VERSION must match via repository audit.
+const CONTROLLER_VERSION = '1.2.3';
+const CONTROLLER_SOURCE_SHA256 = crypto.createHash('sha256').update(fs.readFileSync(__filename)).digest('hex');
 const TARGET_SERVER_PATH = process.env.STREMIO_TARGET_SERVER_PATH || '/app/libexec/stremio/server.js';
 
 // Idempotence guard
@@ -112,6 +115,7 @@ try {
         res.end(JSON.stringify({
           project: CONTROLLER_NAME,
           version: CONTROLLER_VERSION,
+          sourceSha256: CONTROLLER_SOURCE_SHA256,
           active: true,
           muted: true,
           invariants: {
@@ -138,6 +142,7 @@ try {
   // Expose runtime metadata in environment
   process.env.STREMIO_MUTE_ACTIVE = '1';
   process.env.STREMIO_MUTE_VERSION = CONTROLLER_VERSION;
+  process.env.STREMIO_MUTE_SOURCE_SHA256 = CONTROLLER_SOURCE_SHA256;
 
   console.log('[Stremio-Mute] Verified: All 3 structural invariants matched exactly once and enforced in-memory.');
   console.log('[Stremio-Mute] Starting Stremio Streaming Engine in upload-muted mode...');

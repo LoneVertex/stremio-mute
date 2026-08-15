@@ -1,6 +1,6 @@
 # Installation Guide — Stremio Mute
 
-This guide explains how to install, verify, operate, update, roll back, and reinstall Stremio Mute v1.2.2 on a supported Linux Flatpak desktop.
+This guide explains how to install, verify, operate, update, roll back, and reinstall Stremio Mute v1.2.3 on a supported Linux Flatpak desktop.
 
 > **Important:** Use `$HOME` in shell commands when referring to the current user’s home directory. The Flatpak `SERVER_PATH` value itself is stored as an **absolute filesystem path**. The literal `SERVER_PATH=~/.stremio-server/server-wrapper.js` is the historical broken form and must never be configured.
 
@@ -31,12 +31,12 @@ flatpak install flathub com.stremio.Stremio
 
 ## Automated Installation
 
-### Step 1: Clone the v1.2.2 Checkout
+### Step 1: Clone the v1.2.3 Checkout
 
 ```bash
 git clone https://github.com/LoneVertex/stremio-mute.git
 cd stremio-mute
-git checkout v1.2.2
+git checkout v1.2.3
 ```
 
 If you already have the checkout, update it before reinstalling:
@@ -44,7 +44,7 @@ If you already have the checkout, update it before reinstalling:
 ```bash
 cd ~/stremio-mute
 git fetch --tags origin
-git checkout v1.2.2
+git checkout v1.2.3
 ```
 
 ### Step 2: Run the Installer
@@ -58,10 +58,11 @@ The installer performs the following operations in order:
 1. It checks for the Flatpak CLI and confirms that `com.stremio.Stremio` is installed.
 2. It runs the in-sandbox compatibility pre-flight against Stremio’s bundled `server.js` before staging files or changing the Flatpak override.
 3. It verifies the wrapper source and, when host Node.js is available, performs a syntax check.
-4. It stages the wrapper at `$HOME/.stremio-server/server-wrapper.js` with mode `0644` and verifies that the staged bytes match the repository source.
-5. It computes the current user’s absolute wrapper path and stores that value in the Flatpak user override.
-6. It verifies that `flatpak override --user --show com.stremio.Stremio` contains the exact absolute `SERVER_PATH`.
-7. It runs `./scripts/verify.sh`.
+4. It stops any running `com.stremio.Stremio` process so a previously loaded wrapper cannot continue serving stale in-memory metadata.
+5. It stages the wrapper at `$HOME/.stremio-server/server-wrapper.js` with mode `0644` and verifies that the staged bytes match the repository source.
+6. It computes the current user’s absolute wrapper path and stores that value in the Flatpak user override.
+7. It verifies that `flatpak override --user --show com.stremio.Stremio` contains the exact absolute `SERVER_PATH`.
+8. It runs `./scripts/verify.sh`.
 
 The shell expression `$HOME/.stremio-server/server-wrapper.js` is only shorthand for locating the current user’s home directory. For a user whose home is `/home/current-user`, the persisted value must be:
 
@@ -81,7 +82,7 @@ Run the verifier at any time:
 ./scripts/verify.sh
 ```
 
-When Stremio is stopped, a correctly installed v1.2.2 checkout should report:
+When Stremio is stopped, a correctly installed v1.2.3 checkout should report:
 
 ```text
 STATUS: CONFIGURED
@@ -107,7 +108,7 @@ A protected running server should report:
 STATUS: RUNTIME VERIFIED
 ```
 
-`RUNTIME VERIFIED` requires the active loopback controller and heartbeat evidence. If the server is not running, `CONFIGURED` is expected rather than a failure.
+`RUNTIME VERIFIED` requires the active loopback controller and heartbeat evidence, a controller version matching the repository `VERSION`, and an executing-wrapper SHA256 matching the installed wrapper bytes. If the server is not running, `CONFIGURED` is expected rather than a failure.
 
 ---
 
@@ -127,7 +128,7 @@ flatpak run com.stremio.Stremio
 ./scripts/verify.sh
 ```
 
-The expected running state is `STATUS: RUNTIME VERIFIED`. For optional manual checks, inspect the loopback endpoints documented in [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
+The expected running state is `STATUS: RUNTIME VERIFIED`. For optional manual checks, inspect the loopback endpoints documented in [TROUBLESHOOTING.md](TROUBLESHOOTING.md). A runtime reporting an older controller version indicates stale process state and must be restarted before protection is accepted.
 
 ---
 

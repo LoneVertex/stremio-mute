@@ -13,10 +13,13 @@ CONTROLLER_FILE="${WRAPPER_DIR}/server-wrapper.js"
 SOURCE_WRAPPER="${REPO_ROOT}/src/server-wrapper.js"
 EXPECTED_SERVER_PATH="${CONTROLLER_FILE}"
 OVERRIDE_FILE="${HOME_DIR}/.local/share/flatpak/overrides/${APP_ID}"
+PROJECT_VERSION="$(tr -d '\r\n' < "${REPO_ROOT}/VERSION" 2>/dev/null || printf '%s' unknown)"
+EXPECTED_CONTROLLER_SHA256=""
 ERRORS=0
 STATIC_OK=false
 RUNTIME_RUNNING=false
 CONTROLLER_RESPONSIVE=false
+METADATA_OK=false
 HEARTBEAT_OK=false
 INCOMPATIBLE=false
 NOT_INSTALLED=false
@@ -53,6 +56,7 @@ else
     printf '%s\n' "  [FAIL] Repository source wrapper is missing: ${SOURCE_WRAPPER}"
     ERRORS=$((ERRORS+1))
   elif cmp -s "${SOURCE_WRAPPER}" "${CONTROLLER_FILE}"; then
+    EXPECTED_CONTROLLER_SHA256=$(sha256sum "${CONTROLLER_FILE}" 2>/dev/null | awk '{print $1}' || true)
     printf '%s\n' '  [PASS] Active wrapper bytes match the repository source.'
   else
     printf '%s\n' '  [FAIL] Active wrapper differs from the repository source.'
@@ -151,6 +155,14 @@ else
     if printf '%s' "${CONTROLLER_RESP}" | grep -q '"active"[[:space:]]*:[[:space:]]*true'; then
       CONTROLLER_RESPONSIVE=true
       printf '%s\n' '  [PASS] Active zero-upload controller endpoint confirmed.'
+      RUNTIME_VERSION=$(printf '%s' "${CONTROLLER_RESP}" | sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+      RUNTIME_SOURCE_SHA256=$(printf '%s' "${CONTROLLER_RESP}" | sed -n 's/.*"sourceSha256"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+      if [ "${RUNTIME_VERSION}" = "${PROJECT_VERSION}" ] && [ -n "${EXPECTED_CONTROLLER_SHA256}" ] && [ "${RUNTIME_SOURCE_SHA256}" = "${EXPECTED_CONTROLLER_SHA256}" ]; then
+        METADATA_OK=true
+        printf '%s\n' "  [PASS] Runtime metadata matches VERSION=${PROJECT_VERSION} and wrapper SHA256=${EXPECTED_CONTROLLER_SHA256}."
+      else
+        printf '%s\n' "  [FAIL] Runtime metadata is stale or from another wrapper (runtime version=${RUNTIME_VERSION:-<missing>}, expected=${PROJECT_VERSION}, runtime SHA256=${RUNTIME_SOURCE_SHA256:-<missing>}, expected=${EXPECTED_CONTROLLER_SHA256:-<missing>})."
+      fi
     else
       printf '%s\n' '  [FAIL] Runtime responded without active controller evidence.'
     fi
@@ -180,7 +192,7 @@ elif [ "${NOT_INSTALLED}" = true ]; then
   printf '%s\n' ' Verdict: Required installation or exact absolute-path configuration is missing.'
   exit 1
 elif [ "${RUNTIME_RUNNING}" = true ]; then
-  if [ "${CONTROLLER_RESPONSIVE}" = true ] && [ "${HEARTBEAT_OK}" = true ]; then
+  if [ "${CONTROLLER_RESPONSIVE}" = true ] && [ "${METADATA_OK}" = true ] && [ "${HEARTBEAT_OK}" = true ]; then
     printf '%s\n' ' STATUS: RUNTIME VERIFIED'
     printf '%s\n' ' Verdict: The active runtime controller and heartbeat prove protected execution.'
     exit 0

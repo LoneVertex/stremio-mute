@@ -1,4 +1,4 @@
-# Troubleshooting Guide — Stremio Mute v1.2.2
+# Troubleshooting Guide — Stremio Mute v1.2.3
 
 This guide covers common diagnostic workflows, verifier states, update failures, and lifecycle problems.
 
@@ -41,9 +41,11 @@ Static configuration is valid, the exact absolute `SERVER_PATH` is stored, the w
 
 ### `STATUS: RUNTIME VERIFIED`
 
-Stremio is running, the loopback controller endpoint confirms the policy, and the heartbeat is healthy.
+Stremio is running, the loopback controller endpoint confirms the policy, the heartbeat is healthy, the endpoint version matches the repository `VERSION`, and the endpoint source SHA256 matches the installed wrapper bytes.
 
 **Action:** No action is required; runtime protection is active.
+
+If the endpoint reports an older controller version or a different source SHA256, the process is stale or another wrapper copy is serving the endpoint. Stop Stremio, run `./scripts/install.sh` so the installer terminates any running process before staging, relaunch Stremio, and require `RUNTIME VERIFIED` again.
 
 ### `STATUS: NOT PROTECTED`
 
@@ -118,7 +120,7 @@ Use this sequence when the Stremio application opens but reports that its stream
 
    If the verifier reports `INCOMPATIBLE`, do not stream until the upstream compatibility is reviewed. If it reports `NOT INSTALLED`, rerun `./scripts/install.sh`.
 
-The exact endpoint response is implementation evidence only; missing or malformed responses must not be treated as `RUNTIME VERIFIED`.
+The endpoint response is implementation evidence only; missing, malformed, version-mismatched, or source-hash-mismatched responses must not be treated as `RUNTIME VERIFIED`.
 
 ---
 
@@ -136,7 +138,7 @@ flatpak override --user --show com.stremio.Stremio
 
 ```bash
 cd ~/stremio-mute
-git checkout v1.2.2
+git checkout v1.2.3
 ./scripts/install.sh
 ./scripts/verify.sh
 ```

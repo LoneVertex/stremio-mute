@@ -4,6 +4,16 @@ All notable changes to this project are documented in this file.
 
 ---
 
+## [1.2.3] - 2026-08-15
+
+### Fixed & Hardened
+- **Runtime Version Provenance:** The controller now reports its release version and executing-wrapper SHA256 through the loopback endpoint and runtime environment metadata.
+- **Stale-Process Prevention:** Installation stops a running Stremio process before deploying wrapper bytes so an older in-memory controller cannot remain active after an update.
+- **Verifier Deployment Integrity:** `verify.sh` requires endpoint version and source hash to match the repository release and installed wrapper before reporting `RUNTIME VERIFIED`.
+- **Regression Coverage:** Added an explicit failure case for the observed repository `1.2.2` / runtime `1.2.1` mismatch and deployment-integrity checks where the environment permits.
+
+---
+
 ## [1.2.2] - 2026-08-15
 
 ### Fixed & Hardened

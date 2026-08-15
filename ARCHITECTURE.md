@@ -49,7 +49,7 @@ During initial investigation, several system and network-level mechanisms were e
 
 ---
 
-## 3. The v1.2.2 In-Memory Controller Architecture
+## 3. The v1.2.3 In-Memory Controller Architecture
 
 The **Stremio Mute** controller enforces policy at the application layer by modifying engine state directly in Node.js process memory. The launch path is:
 
@@ -71,7 +71,7 @@ The installer may use `$HOME` as shell notation when locating the current userâ€
                                                      | (Spawns Node using SERVER_PATH)
                                                      v
                                +--------------------------------------------+
-                               |        src/server-wrapper.js (v1.2.2)      |
+                               |        src/server-wrapper.js (v1.2.3)      |
                                +--------------------------------------------+
                                                      |
                      +-------------------------------+-------------------------------+
@@ -145,3 +145,4 @@ When Stremio connects to seeders:
 2. **Exact-1 Fingerprint Matching:** Every patch pattern must match **exactly 1 occurrence** in `server.js`.
 3. **Fail-Closed Mechanics:** If an upstream update modifies `server.js` code structure, the process terminates immediately (`process.exit(1)`) and outputs diagnostics.
 4. **Loopback Status Telemetry:** Exposes `http://127.0.0.1:11470/zero-upload-controller` exclusively on `127.0.0.1` for health checks.
+5. **Deployment Identity:** Reports the controller release version and wrapper SHA256; installation stops a running Stremio process before deployment so endpoint metadata cannot remain from an older in-memory wrapper.

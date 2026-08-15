@@ -1,6 +1,6 @@
-# Compatibility Matrix and Update Model — Stremio Mute v1.2.2
+# Compatibility Matrix and Update Model — Stremio Mute v1.2.3
 
-**Controller version:** `1.2.2`
+**Controller version:** `1.2.3`
 **Classification:** `PASS WITH VERSION-SENSITIVITY`
 
 The **controller version** identifies this repository’s scripts and wrapper. The **verified Stremio version** identifies an upstream Stremio engine whose bundled `server.js` matched the controller’s structural fingerprints. These are separate versions and must not be conflated.
@@ -12,7 +12,7 @@ The **controller version** identifies this repository’s scripts and wrapper. T
 | Scope | Platform or version | Status | Evidence or notes |
 |---|---|---|---|
 | **Packaging** | Linux Flatpak `com.stremio.Stremio` | **SUPPORTED** | Standard Flatpak user-override installation model |
-| **Controller** | Stremio Mute v1.2.2 | **CURRENT** | Absolute-path installer, exact verifier, fail-closed wrapper |
+| **Controller** | Stremio Mute v1.2.3 | **CURRENT** | Absolute-path installer, exact verifier, fail-closed wrapper |
 | **Verified target** | Stremio v1.2.0 / EngineFS v4.21.0 / `torrent-stream` reference `#4d9eaff` | **VERIFIED** | Three structural fingerprints matched exactly once in the tested engine bundle |
 | **Verified environment** | Fedora 44 + KDE Plasma 6 + Linux 7.1 | **VERIFIED** | Environment associated with the verified target evidence |
 | **Other distributions** | Arch Linux, Ubuntu, Debian, openSUSE | **UNVERIFIED** | Expected to work through Flatpak but not independently tested by this project |
@@ -116,3 +116,5 @@ If compatibility fails, run `./scripts/diagnose.sh` and submit a [compatibility 
 ## 6. Evidence Boundaries
 
 The controller’s structural compatibility can be tested using the repository fixtures and an installed Flatpak engine. Live KDE launch, real stream playback, peer counts, packet-level upload measurement, and post-reboot persistence require a suitable desktop environment and are not implied by static repository tests. Do not broaden the `VERIFIED` label beyond the environment and target version listed in the matrix.
+
+At runtime, the controller endpoint reports both the v1.2.3 controller version and the SHA256 of the executing wrapper source. Verification requires the endpoint version to match the repository `VERSION` and the reported source hash to match the installed wrapper bytes. A running process from an older wrapper is therefore not accepted as `RUNTIME VERIFIED` after deployment.
