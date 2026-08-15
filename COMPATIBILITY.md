@@ -72,7 +72,7 @@ The verifier distinguishes these states:
 | State | Meaning |
 |---|---|
 | `CONFIGURED` | The wrapper, exact absolute override, source bytes, and compatibility checks are valid while Stremio is idle |
-| `RUNTIME VERIFIED` | Stremio is running and controller plus heartbeat evidence confirms protected execution |
+| `RUNTIME VERIFIED` | Stremio is running, loopback heartbeat and controller responses are present, the controller is active, `version` matches repository `VERSION`, `sourceSha256` matches the installed wrapper bytes, and the documented invariants are present |
 | `NOT PROTECTED` | Stremio is running without complete controller evidence |
 | `INCOMPATIBLE` | One or more structural fingerprints do not match; the wrapper remains fail-closed |
 | `NOT INSTALLED` | The wrapper or exact absolute override is missing or incorrect |

@@ -91,11 +91,11 @@ The expected protected running state is:
 STATUS: RUNTIME VERIFIED
 ```
 
-This state requires the controller endpoint and heartbeat to respond, the endpoint version to match the repository `VERSION`, and the endpoint source SHA256 to match the installed wrapper bytes. If Stremio is stopped, `CONFIGURED` is correct. Do not treat `ERROR`, `NOT PROTECTED`, stale metadata, or missing telemetry as proof of zero upload.
+This state requires Stremio to be running, the controller endpoint and heartbeat to respond, the controller to be active, the endpoint version to match the repository `VERSION`, the endpoint `sourceSha256` to match the installed wrapper bytes, and the upload-suppression invariants to be present. The status endpoint exposes `version`, `sourceSha256`, `active`, `muted`, `uploads`, `rechokeSlots`, and `wireRequestBlocked`. If Stremio is stopped, `CONFIGURED` is correct. Do not treat `ERROR`, `NOT PROTECTED`, stale metadata, or missing telemetry as proof of zero peer-piece upload.
 
 ### 3.1 Restarting Stremio
 
-After closing and reopening Stremio, launch it normally, start a stream, and rerun the verifier:
+After closing and reopening Stremio, the new process loads the current wrapper bytes. Launch it normally, start a stream, and rerun the verifier:
 
 ```bash
 flatpak run com.stremio.Stremio
@@ -123,7 +123,7 @@ flatpak run com.stremio.Stremio
 ./scripts/verify.sh
 ```
 
-The expected result is `RUNTIME VERIFIED`. If it is not, inspect the exact override and diagnostics before streaming.
+The expected result is `RUNTIME VERIFIED`. If it is not, inspect the exact override and diagnostics before streaming. A version or source-hash mismatch indicates stale in-memory state or another wrapper copy; rerun the supported installer lifecycle rather than editing arbitrary runtime state.
 
 ---
 

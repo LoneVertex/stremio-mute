@@ -7,10 +7,12 @@ All notable changes to this project are documented in this file.
 ## [1.2.3] - 2026-08-15
 
 ### Fixed & Hardened
-- **Runtime Version Provenance:** The controller now reports its release version and executing-wrapper SHA256 through the loopback endpoint and runtime environment metadata.
-- **Stale-Process Prevention:** Installation stops a running Stremio process before deploying wrapper bytes so an older in-memory controller cannot remain active after an update.
-- **Verifier Deployment Integrity:** `verify.sh` requires endpoint version and source hash to match the repository release and installed wrapper before reporting `RUNTIME VERIFIED`.
-- **Regression Coverage:** Added an explicit failure case for the observed repository `1.2.2` / runtime `1.2.1` mismatch and deployment-integrity checks where the environment permits.
+- **Stale Runtime Identity:** Fixed the observed repository `1.2.2` / runtime `1.2.1` mismatch by synchronizing the controller release identity with v1.2.3 and preventing an older in-memory process from surviving deployment.
+- **Hardened Installer Lifecycle:** Installation stops a running Stremio process before replacing wrapper bytes, preventing stale-process execution after install, update, or reinstall.
+- **Runtime Source Identity:** The loopback controller endpoint now exposes the controller `version` and executing-wrapper `sourceSha256` for deployment verification.
+- **Tightened Runtime Verification:** `verify.sh` requires the endpoint version to match repository `VERSION` and `sourceSha256` to match the installed wrapper before reporting `RUNTIME VERIFIED`.
+- **Regression Coverage:** Added an explicit failure case for the observed version mismatch and deployment-integrity checks where the environment permits.
+- **Architecture Preserved:** Existing application-level upload suppression remains unchanged, including the `rechokeSlots = 0`, `uploads = 0`, and request-handler neutralization invariants.
 
 ---
 

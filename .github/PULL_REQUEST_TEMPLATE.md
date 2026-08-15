@@ -20,8 +20,12 @@ Explain the technical mechanism of the change:
 - [ ] `bash tests/compatibility/test_compatibility_fixtures.sh` passed
 - [ ] `bash tests/integration/test_install_rollback.sh` passed
 - [ ] `bash tests/static/test_absolute_path.sh` passed
+- [ ] `bash tests/static/test_controller_version.sh` passed
+- [ ] `bash tests/static/test_stale_process_install.sh` passed
 - [ ] `bash scripts/repo-audit.sh` passed
+- [ ] Runtime endpoint `version` matches repository `VERSION` and `sourceSha256` matches the installed wrapper, or the limitation is explicitly documented
 - [ ] Live streaming test verified, or explicitly marked unverified when no suitable Flatpak desktop environment is available
+- [ ] Any `RUNTIME VERIFIED` claim is backed by endpoint, heartbeat, invariant, and environment evidence
 
 ```text
 (Paste verify.sh or test output here)

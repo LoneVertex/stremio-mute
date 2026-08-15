@@ -10,7 +10,7 @@
    - **Bug Report:** For unexpected behavior or errors during installation or verification.
    - **Compatibility Report:** For findings on a new Stremio version or Linux distribution.
 
-When reporting a runtime issue, include the verifier state, Stremio and Flatpak versions, operating system and desktop environment, lifecycle context such as reboot/update/reinstall, and endpoint evidence if available. Do not claim `RUNTIME VERIFIED` or zero peer-piece upload without corresponding evidence.
+When reporting a runtime issue, include the Stremio Mute version, verifier state, Stremio and Flatpak versions, operating system and desktop environment, lifecycle context such as reboot/update/reinstall, and endpoint evidence if available. When runtime is active, include the reported controller `version`, `sourceSha256`, `active`, `muted`, `uploads`, `rechokeSlots`, and `wireRequestBlocked` fields. Do not include credentials, private paths, or other sensitive data. Do not claim `RUNTIME VERIFIED` or zero peer-piece upload without corresponding evidence.
 
 ---
 

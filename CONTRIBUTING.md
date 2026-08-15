@@ -36,9 +36,12 @@ We do **NOT** accept contributions that:
    bash tests/compatibility/test_compatibility_fixtures.sh
    bash tests/integration/test_install_rollback.sh
    bash tests/static/test_absolute_path.sh
+   bash tests/static/test_controller_version.sh
+   bash tests/static/test_stale_process_install.sh
    ```
 3. Run the repository hygiene auditor:
    ```bash
    bash scripts/repo-audit.sh
    ```
-4. Submit a Pull Request following the [PR Template](.github/PULL_REQUEST_TEMPLATE.md).
+4. When reporting runtime behavior, distinguish static tests from live Fedora/KDE/Flatpak evidence; do not claim `RUNTIME VERIFIED` or zero peer-piece upload without corresponding endpoint and environment evidence.
+5. Submit a Pull Request following the [PR Template](.github/PULL_REQUEST_TEMPLATE.md).

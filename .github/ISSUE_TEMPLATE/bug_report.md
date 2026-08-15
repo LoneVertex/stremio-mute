@@ -9,6 +9,12 @@ assignees: ''
 **Describe the Bug**
 A clear and concise description of what the issue is.
 
+**Version and Environment**
+- Stremio Mute Version:
+- Stremio Version:
+- Linux Distribution and Desktop Environment:
+- Flatpak Version:
+
 **Diagnostic Snapshot**
 Run `./scripts/diagnose.sh` and paste the output below:
 
@@ -22,6 +28,8 @@ Run `./scripts/verify.sh` and paste the output below:
 ```text
 (Paste output of ./scripts/verify.sh here)
 ```
+
+If the endpoint is reachable, include its reported `version`, `sourceSha256`, `active`, `muted`, `uploads`, `rechokeSlots`, and `wireRequestBlocked` fields. State whether `version` matches `VERSION` and `sourceSha256` matches the installed wrapper. Redact credentials, private paths, and other sensitive data.
 
 **Steps to Reproduce**
 1. Step 1

@@ -129,6 +129,8 @@ Under the BitTorrent protocol specification (BEP 3), upload and download states 
 | `wire.amInterested` | Stremio wants pieces from remote peer | Stremio Engine | **`true` (When pieces needed)** |
 | `wire.peerInterested` | Remote peer wants pieces from Stremio | Remote Peer | Ignored (Cannot request) |
 
+The policy target is zero observed BitTorrent peer-piece upload from the protected engine, not zero total outbound packets. Tracker/control, DNS, HTTPS, telemetry, and other background traffic are outside that guarantee and may continue.
+
 When Stremio connects to seeders:
 1. Stremio sends `interested` and `choke` to the remote peer.
 2. The remote peer unchokes Stremio (`peerChoking = false`).
@@ -146,3 +148,4 @@ When Stremio connects to seeders:
 3. **Fail-Closed Mechanics:** If an upstream update modifies `server.js` code structure, the process terminates immediately (`process.exit(1)`) and outputs diagnostics.
 4. **Loopback Status Telemetry:** Exposes `http://127.0.0.1:11470/zero-upload-controller` exclusively on `127.0.0.1` for health checks.
 5. **Deployment Identity:** Reports the controller release version and wrapper SHA256; installation stops a running Stremio process before deployment so endpoint metadata cannot remain from an older in-memory wrapper.
+6. **Runtime Verification:** `verify.sh` accepts `RUNTIME VERIFIED` only when the active endpoint version matches the repository `VERSION`, its `sourceSha256` matches the installed wrapper, heartbeat is healthy, and the required upload-suppression invariants are present.

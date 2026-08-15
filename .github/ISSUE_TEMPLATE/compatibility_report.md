@@ -9,6 +9,7 @@ assignees: ''
 **Environment Information**
 - Linux Distribution & Version:
 - Desktop Environment (KDE / GNOME / etc.):
+- Stremio Mute Version:
 - Stremio Version:
 - Flatpak Version:
 
@@ -25,6 +26,8 @@ Run `./scripts/diagnose.sh` and paste the output below:
 - Did playback start normally?
 - After launching Stremio, did `http://127.0.0.1:11470/heartbeat` respond?
 - Did `http://127.0.0.1:11470/zero-upload-controller` respond?
+- If it responded, what values did it report for `version`, `sourceSha256`, `active`, `muted`, `uploads`, `rechokeSlots`, and `wireRequestBlocked`? Redact credentials, private paths, and other sensitive data.
+- Does the endpoint `version` match the Stremio Mute `VERSION`, and does `sourceSha256` match the installed wrapper? If not, report the mismatch exactly.
 - If upload was measured, describe the method and distinguish peer-piece upload from aggregate host traffic. Do not claim zero bytes without evidence.
 
 **Lifecycle Context**

@@ -10,10 +10,10 @@ We maintain strict semantic separation between the **Controller Version** and **
 
 ```text
 Controller Version (e.g. 1.2.3):
-  Tracks features, fixes, and improvements in this repository. The current published controller is v1.2.3.
+  Tracks features, fixes, and improvements in this repository. The current published controller is v1.2.3, and its runtime endpoint must report `version: 1.2.3`.
 
 Target Stremio Version (e.g. v1.2.0):
-  The upstream Flatpak application release verified against our structural fingerprints. This is independent of the controller version; v1.2.0 is the verified target evidence documented in COMPATIBILITY.md.
+  The upstream Flatpak application release verified against our structural fingerprints. This is independent of the controller version: controller v1.2.3 does not mean upstream Stremio v1.2.3. The currently documented verified target is Stremio v1.2.0, as recorded in COMPATIBILITY.md.
 ```
 
 ---

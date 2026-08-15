@@ -108,7 +108,7 @@ A protected running server should report:
 STATUS: RUNTIME VERIFIED
 ```
 
-`RUNTIME VERIFIED` requires the active loopback controller and heartbeat evidence, a controller version matching the repository `VERSION`, and an executing-wrapper SHA256 matching the installed wrapper bytes. If the server is not running, `CONFIGURED` is expected rather than a failure.
+`RUNTIME VERIFIED` requires the active loopback controller and heartbeat evidence, a controller version matching the repository `VERSION`, an executing-wrapper `sourceSha256` matching the installed wrapper bytes, and the required upload-suppression invariants. If the server is not running, `CONFIGURED` is expected rather than a failure.
 
 ---
 
@@ -128,7 +128,7 @@ flatpak run com.stremio.Stremio
 ./scripts/verify.sh
 ```
 
-The expected running state is `STATUS: RUNTIME VERIFIED`. For optional manual checks, inspect the loopback endpoints documented in [TROUBLESHOOTING.md](TROUBLESHOOTING.md). A runtime reporting an older controller version indicates stale process state and must be restarted before protection is accepted.
+The expected running state is `STATUS: RUNTIME VERIFIED`. For optional manual checks, inspect the loopback endpoints documented in [TROUBLESHOOTING.md](TROUBLESHOOTING.md): `/heartbeat` should report success, and `/zero-upload-controller` should expose `version`, `sourceSha256`, `active`, `muted`, `uploads`, `rechokeSlots`, and `wireRequestBlocked`. A runtime reporting an older controller version indicates stale process state and must be restarted through the supported installer lifecycle before protection is accepted.
 
 ---
 
@@ -142,7 +142,7 @@ cd ~/stremio-mute
 ./scripts/verify.sh
 ```
 
-If the verifier reports `INCOMPATIBLE`, do not stream through the controller. The wrapper is designed to fail closed. Generate a diagnostic report and submit a [compatibility issue](https://github.com/LoneVertex/stremio-mute/issues):
+If the verifier reports `INCOMPATIBLE`, do not stream through the controller. The wrapper is designed to fail closed; do not disable protection to bypass the compatibility failure. Generate a diagnostic report and submit a [compatibility issue](https://github.com/LoneVertex/stremio-mute/issues):
 
 ```bash
 ./scripts/diagnose.sh

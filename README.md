@@ -31,7 +31,7 @@ flatpak run com.stremio.Stremio
 ./scripts/verify.sh
 ```
 
-A protected running server reports `STATUS: RUNTIME VERIFIED`. After every Stremio or Flatpak update, run `./scripts/verify.sh` before streaming. After a reboot, `CONFIGURED` before launch is normal; `RUNTIME VERIFIED` requires the Stremio server to be running and its controller and heartbeat to respond.
+A protected running server reports `STATUS: RUNTIME VERIFIED`. This means the running process responds on loopback, the controller is active, the heartbeat is healthy, the runtime version matches the repository `VERSION`, the endpoint `sourceSha256` matches the installed wrapper identity, and the upload-suppression invariants are present. After every Stremio or Flatpak update, run `./scripts/verify.sh` before streaming. After a reboot, `CONFIGURED` before launch is normal.
 
 For complete procedures, see [INSTALL.md](INSTALL.md) and the [operational runbook](docs/operations/RUNBOOK.md).
 
@@ -57,6 +57,7 @@ Stremio’s embedded BitTorrent engine fork defaults to allocating upload slots.
 3. The wrapper inspects `/app/libexec/stremio/server.js` in memory and requires three structural fingerprints to occur exactly once.
 4. It applies three in-memory modifications: `rechokeSlots = 0`, engine defaults `uploads = 0`, and request-handler neutralization before disk-piece reads.
 5. It compiles and executes the patched server in Node.js process memory without modifying vendor files on disk.
+6. Its loopback status response exposes `version`, `sourceSha256`, `active`, `muted`, `uploads`, `rechokeSlots`, and `wireRequestBlocked`; the verifier uses the version and source hash to identify the currently executing wrapper.
 
 ### Absolute `SERVER_PATH` Rule
 
@@ -76,7 +77,7 @@ SERVER_PATH=~/.stremio-server/server-wrapper.js
 
 ## What It Does Not Do
 
-This project is a local engine-policy enforcement tool. It is not a content provider, scraper, streaming service, Debrid client, third-party addon, catalog provider, proxy, VPN, or network relay. It does not eliminate the minimal protocol discovery traffic needed to locate seeders.
+This project is a local engine-policy enforcement tool. It is not a content provider, scraper, streaming service, Debrid client, third-party addon, catalog provider, proxy, VPN, or network relay. It targets zero observed BitTorrent peer-piece upload; it does not mean zero total outbound packets. Tracker/control, DNS, HTTPS, telemetry, and other background traffic may still occur.
 
 ---
 
@@ -175,8 +176,7 @@ in-memory patched server.js
 torrent engine + local player IPC
 ```
 
-The controller enforces three invariants: zero rechoke upload slots, zero upload defaults, and immediate rejection of peer piece requests before disk reads. Its loopback metadata includes the controller version and executing-wrapper SHA256 so stale in-memory processes can be rejected. If any exact-one fingerprint check fails, the wrapper exits instead of running the unmodified server.
- For the protocol analysis and rejected network-layer alternatives, see [ARCHITECTURE.md](ARCHITECTURE.md).
+The controller enforces three invariants: zero rechoke upload slots, zero upload defaults, and immediate rejection of peer piece requests before disk reads. Its loopback metadata includes the controller version and executing-wrapper SHA256 so stale in-memory processes can be rejected. If any exact-one fingerprint check fails, the wrapper exits instead of running the unmodified server. For the protocol analysis and rejected network-layer alternatives, see [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ---
 
