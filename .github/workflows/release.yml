@@ -19,16 +19,16 @@ jobs:
       - name: Verify CI Success
         env:
           GH_TOKEN: ${{ github.token }}
+          TARGET_REPOSITORY: ${{ github.repository }}
+          TARGET_SHA: ${{ github.sha }}
         run: |
-          success_count=$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs" \
-            -f head_sha="${GITHUB_SHA}" \
-            -f status=completed \
-            --jq '[.workflow_runs[] | select(.conclusion == "success")] | length')
+          success_count=$(gh api --method GET "repos/${TARGET_REPOSITORY}/actions/runs?head_sha=${TARGET_SHA}&status=completed" \
+            --jq "[.workflow_runs[] | select(.head_sha == \\\"${TARGET_SHA}\\\" and .name == \\\"CI\\\" and .conclusion == \\\"success\\\")] | length")
           if [ "${success_count}" -lt 1 ]; then
-            echo "No successful CI run exists for ${GITHUB_SHA}; refusing to publish a release."
+            echo "No successful CI run exists for ${TARGET_SHA}; refusing to publish a release."
             exit 1
           fi
-          echo "Successful CI run found for ${GITHUB_SHA}."
+          echo "Successful CI run found for ${TARGET_SHA}."
 
   release:
     name: Build & Publish Release Assets
