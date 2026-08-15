@@ -49,9 +49,19 @@ During initial investigation, several system and network-level mechanisms were e
 
 ---
 
-## 3. The In-Memory Controller Architecture
+## 3. The v1.2.2 In-Memory Controller Architecture
 
-The **Stremio Mute** controller enforces policy at the application layer by modifying engine state directly in Node.js process memory.
+The **Stremio Mute** controller enforces policy at the application layer by modifying engine state directly in Node.js process memory. The launch path is:
+
+```text
+Stremio Flatpak
+    → Flatpak user override with absolute SERVER_PATH
+    → $HOME/.stremio-server/server-wrapper.js
+    → in-memory patched /app/libexec/stremio/server.js
+    → torrent engine and local player IPC
+```
+
+The installer may use `$HOME` as shell notation when locating the current user’s home directory, but the persisted Flatpak environment value must be the expanded absolute path. A literal tilde is not expanded by Flatpak or the Node.js process and is therefore invalid. This distinction is mandatory for install, verify, rollback, reboot, and reinstall behavior.
 
 ```text
                                +--------------------------------------------+
@@ -61,7 +71,7 @@ The **Stremio Mute** controller enforces policy at the application layer by modi
                                                      | (Spawns Node using SERVER_PATH)
                                                      v
                                +--------------------------------------------+
-                               |        src/server-wrapper.js (v1.2.0)      |
+                               |        src/server-wrapper.js (v1.2.2)      |
                                +--------------------------------------------+
                                                      |
                      +-------------------------------+-------------------------------+
@@ -84,6 +94,8 @@ The **Stremio Mute** controller enforces policy at the application layer by modi
 ```
 
 ### The Three Enforced Invariants
+
+The wrapper is loaded only through the exact absolute `SERVER_PATH` configured for the current user. `verify.sh` requires that persisted value to match the canonical `$HOME/.stremio-server/server-wrapper.js` location after expansion; missing, literal-tilde, stale, cross-user, and incorrect paths are rejected.
 
 #### Invariant 1: `rechokeSlots = 0` (Local Choking State)
 - **Mechanism:** In the periodic rechoke timer loop:

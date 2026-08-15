@@ -19,8 +19,9 @@ Explain the technical mechanism of the change:
 - [ ] `bash tests/static/test_syntax.sh` passed
 - [ ] `bash tests/compatibility/test_compatibility_fixtures.sh` passed
 - [ ] `bash tests/integration/test_install_rollback.sh` passed
+- [ ] `bash tests/static/test_absolute_path.sh` passed
 - [ ] `bash scripts/repo-audit.sh` passed
-- [ ] Live streaming test verified (0 bytes peer piece upload)
+- [ ] Live streaming test verified, or explicitly marked unverified when no suitable Flatpak desktop environment is available
 
 ```text
 (Paste verify.sh or test output here)

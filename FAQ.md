@@ -1,19 +1,86 @@
-# Frequently Asked Questions (FAQ) — Stremio Mute
+# Frequently Asked Questions — Stremio Mute v1.2.2
 
-### Q: Will this reduce or slow down my streaming download speed?
-**A:** No. Under the BitTorrent protocol (BEP 3), download throughput depends on remote seeders unchoking the local client and sending requested media piece blocks. Stremio Mute only modifies your local choking state towards peers (preventing you from serving piece blocks to them). In empirical tests, download throughput is identical to stock Stremio.
+### Will this reduce or slow down my streaming download speed?
 
-### Q: Does this require root, `sudo`, or system firewall changes?
-**A:** No. Stremio Mute runs entirely in user space inside the unprivileged Flatpak sandbox environment. It does not alter your host firewall, nftables, systemd units, or network interfaces.
+Stremio Mute is designed to suppress local BitTorrent media-piece uploads while preserving ordinary download requests. Actual throughput still depends on remote seeders, swarm conditions, and the upstream Stremio engine. The project does not guarantee a particular download speed.
 
-### Q: Is this an addon, scraper, or Debrid proxy?
-**A:** No. This project is strictly a local engine-level policy enforcement tool for Stremio's embedded BitTorrent engine. It does not use or integrate with any third-party addons, torrent scrapers, external proxies, or Debrid accounts.
+### Why is `SERVER_PATH` an absolute path?
 
-### Q: Does this eliminate all network traffic from Stremio?
-**A:** No. It suppresses **BitTorrent media-piece serving (seeding)**. Minimal protocol discovery traffic (such as BitTorrent tracker announcements exchanging ~200 bytes of discovery metadata to join swarms and discover seeders) remains active as required to stream media.
+Flatpak passes the configured environment value to Stremio’s Node.js process. A literal tilde inside that value is not expanded as shell syntax. The installer therefore computes and stores the current user’s absolute wrapper path, for example:
 
-### Q: What happens when Stremio updates?
-**A:** Stremio Mute operates under a **fail-closed** safety model. If an upstream update modifies `server.js` code structure such that any fingerprint mismatches, Stremio's streaming server refuses to launch (`process.exit(1)`) rather than silently leaking upload data. You can run `./scripts/verify.sh` after any update to confirm status.
+```text
+SERVER_PATH=/home/current-user/.stremio-server/server-wrapper.js
+```
 
-### Q: How can I verify it is actively working?
-**A:** Run `./scripts/verify.sh` while playing any video stream. The tool directly queries the local loopback IPC controller endpoint on `http://127.0.0.1:11470/zero-upload-controller` and confirms active invariant enforcement.
+Use `$HOME/.stremio-server/server-wrapper.js` in shell commands as shorthand only. Do not manually configure `SERVER_PATH=~/.stremio-server/server-wrapper.js`.
+
+### What should I do after a reboot?
+
+Open a terminal and run:
+
+```bash
+cd ~/stremio-mute
+./scripts/verify.sh
+```
+
+`CONFIGURED` is expected while Stremio is stopped. Launch Stremio, start a stream, and run the verifier again. Require `RUNTIME VERIFIED` before treating active runtime protection as confirmed.
+
+### Why does `verify.sh` say `CONFIGURED` instead of `RUNTIME VERIFIED`?
+
+`CONFIGURED` means static installation checks pass while Stremio is idle. `RUNTIME VERIFIED` requires the Stremio server to be running and the controller endpoint and heartbeat to respond. Launch Stremio and start a stream before running the verifier again.
+
+### What should I do after a Stremio update?
+
+Run verification before streaming:
+
+```bash
+flatpak update com.stremio.Stremio
+cd ~/stremio-mute
+./scripts/verify.sh
+```
+
+If the result is `INCOMPATIBLE`, run `./scripts/diagnose.sh` and submit a compatibility report. The wrapper is fail-closed and should not be bypassed.
+
+### Why can the application fail after an old rollback?
+
+Older installations may have left a sandbox-local wrapper or a stale override. v1.2.2 rollback removes the canonical wrapper, the legacy wrapper location, and the project’s exact Flatpak override. Verify removal with:
+
+```bash
+./scripts/rollback.sh
+./scripts/verify.sh
+```
+
+`NOT INSTALLED` is the expected state after a successful rollback. Reinstall with `./scripts/install.sh` to regenerate the current user’s absolute path.
+
+### How can I verify the running controller?
+
+Run:
+
+```bash
+./scripts/verify.sh
+```
+
+For optional loopback inspection while Stremio is running:
+
+```bash
+curl -fsS http://127.0.0.1:11470/heartbeat
+curl -fsS http://127.0.0.1:11470/zero-upload-controller
+```
+
+Missing or malformed telemetry is not proof of protection.
+
+### Does the project require `com.stremio.Service`?
+
+The documented installation targets the `com.stremio.Stremio` Flatpak and configures its user-level `SERVER_PATH` override. The repository’s current setup does not instruct users to install or configure a separate `com.stremio.Service` application. Whether a particular Stremio distribution exposes an additional service component is environment-specific and remains unverified by this project; do not add one unless Stremio’s own packaging requires it.
+
+### Does this require root, `sudo`, or system firewall changes?
+
+No. The project is designed to run in user space through the Flatpak user override and does not alter host firewall rules, nftables, systemd units, or network interfaces.
+
+### Is this an addon, scraper, or Debrid proxy?
+
+No. Stremio Mute is a local engine-level policy controller for the Stremio Flatpak. It is not a content provider, scraper, third-party addon, catalog provider, proxy, VPN, or Debrid client.
+
+### Does this eliminate all network traffic from Stremio?
+
+No. It targets BitTorrent media-piece serving. Discovery and control traffic required to locate and communicate with peers remains part of normal operation.

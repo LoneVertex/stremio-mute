@@ -8,63 +8,75 @@
 [![Tested: Fedora KDE](https://img.shields.io/badge/Tested-Fedora%2044%20KDE-blue.svg)](COMPATIBILITY.md)
 [![Status: Version--Sensitive](https://img.shields.io/badge/Compatibility-Version--Sensitive-yellow.svg)](COMPATIBILITY.md)
 
-**Stremio Mute** is an application-level BitTorrent upload control utility for [Stremio](https://www.stremio.com/) on Linux (Flatpak). It suppresses media-piece uploads (seeding) to remote peers while streaming, preserving standard video playback, download throughput, and local player IPC communication.
+**Stremio Mute** is an application-level BitTorrent upload-control utility for [Stremio](https://www.stremio.com/) on Linux Flatpak. It suppresses media-piece uploads to remote peers while preserving ordinary video playback, download throughput, and local player IPC communication.
 
 ---
 
-## Quick Navigation
+## Quickstart
 
-- [What It Does](#what-it-does)
-- [Why It Exists](#why-it-exists)
-- [How It Works](#how-it-works)
-- [What It Does NOT Do](#what-it-does-not-do)
-- [Compatibility](#compatibility)
-- [Installation](#installation)
-- [Operational Verification](#operational-verification)
-- [Handling Stremio Updates](#handling-stremio-updates)
-- [Rollback](#rollback)
-- [Known Limitations](#known-limitations)
-- [Architecture & Invariants](#architecture--invariants)
-- [Security & Threat Model](#security--threat-model)
-- [License & Trademarks](#license--trademarks)
+Use the published v1.2.2 checkout for a reproducible installation:
+
+```bash
+git clone https://github.com/LoneVertex/stremio-mute.git
+cd stremio-mute
+git checkout v1.2.2
+./scripts/install.sh
+./scripts/verify.sh
+```
+
+When Stremio is stopped, a correct installation reports `STATUS: CONFIGURED`. Launch Stremio normally, start a stream, and verify the running state:
+
+```bash
+flatpak run com.stremio.Stremio
+./scripts/verify.sh
+```
+
+A protected running server reports `STATUS: RUNTIME VERIFIED`. After every Stremio or Flatpak update, run `./scripts/verify.sh` before streaming. After a reboot, `CONFIGURED` before launch is normal; `RUNTIME VERIFIED` requires the Stremio server to be running and its controller and heartbeat to respond.
+
+For complete procedures, see [INSTALL.md](INSTALL.md) and the [operational runbook](docs/operations/RUNBOOK.md).
 
 ---
 
 ## What It Does
 
-- **Mutes Peer Piece Uploads:** Permanently chokes all BitTorrent peer connections (`rechokeSlots = 0`) and intercepts media request reads before cached disk chunks can be transmitted.
-- **Preserves Full Video Downloads:** Outbound media block requests and downloads proceed normally whenever remote seeders unchoke the local client.
-- **Preserves Local Player IPC:** Retains full desktop playback and loopback communication on `127.0.0.1:11470`.
-- **Fails Closed on Update:** If Stremio updates and the internal engine layout changes, Stremio Mute aborts startup immediately with clear diagnostics rather than silently leaking upload bandwidth.
-
----
+- **Mutes peer piece uploads:** Permanently chokes BitTorrent peer connections and intercepts media request reads before cached disk chunks can be transmitted.
+- **Preserves video downloads:** Outbound media block requests and downloads proceed normally whenever remote seeders unchoke the local client.
+- **Preserves local player IPC:** Retains desktop playback and loopback communication on `127.0.0.1:11470`.
+- **Fails closed on update:** If Stremio updates and the internal engine layout changes, Stremio Mute aborts startup with diagnostics rather than silently permitting unverified upload behavior.
 
 ## Why It Exists
 
-Stremio's embedded BitTorrent engine fork (`torrent-stream`) defaults to allocating 5 upload slots (`rechokeSlots = 5`). While streaming media, it actively reads downloaded chunks from disk cache and transmits them to remote peers. For users on metered, capped, or asymmetric ISP connections, this upstream traffic consumes quota and bandwidth. Stremio's settings UI currently lacks a functional engine-level zero-upload toggle.
+Stremio’s embedded BitTorrent engine fork defaults to allocating upload slots. While streaming media, it can read downloaded chunks from its cache and transmit them to remote peers. Stremio’s settings UI does not provide a reliable engine-level zero-upload control, so Stremio Mute applies that policy at the controller layer for the Flatpak server process.
 
 ---
 
 ## How It Works
 
-1. Flatpak's native `SERVER_PATH` environment variable directs Stremio's launcher to load the staged wrapper in place of stock `server.js`. The installer stores the current user’s absolute path, such as `/home/current-user/.stremio-server/server-wrapper.js`.
-2. The wrapper dynamically inspects `/app/libexec/stremio/server.js` in memory and verifies three structural code fingerprints.
-3. The wrapper applies three in-memory modifications:
-   - **`rechokeSlots = 0`**: Keeps all peer connections permanently choked (`wire.amChoking = true`).
-   - **`defaults.uploads = 0`**: Sets engine constructor defaults to 0 upload slots.
-   - **`wire.on("request")` Neutralization**: Intercepts incoming peer piece requests with an immediate policy error before disk reads can occur.
-4. It compiles and executes the patched server in Node.js process memory without modifying any vendor files on disk.
+1. Flatpak’s `SERVER_PATH` environment variable directs Stremio’s launcher to the staged wrapper instead of stock `server.js`.
+2. The installer stages the wrapper at `$HOME/.stremio-server/server-wrapper.js` and stores the **expanded absolute path** in the Flatpak user override. For example, the persisted value may be `/home/current-user/.stremio-server/server-wrapper.js`.
+3. The wrapper inspects `/app/libexec/stremio/server.js` in memory and requires three structural fingerprints to occur exactly once.
+4. It applies three in-memory modifications: `rechokeSlots = 0`, engine defaults `uploads = 0`, and request-handler neutralization before disk-piece reads.
+5. It compiles and executes the patched server in Node.js process memory without modifying vendor files on disk.
+
+### Absolute `SERVER_PATH` Rule
+
+Use `$HOME/.stremio-server/server-wrapper.js` in shell commands when referring to the current user’s home directory. The Flatpak environment value itself is stored as an absolute path and must not contain a literal tilde. This is correct:
+
+```text
+SERVER_PATH=/home/current-user/.stremio-server/server-wrapper.js
+```
+
+This is the historical invalid form and must not be configured:
+
+```text
+SERVER_PATH=~/.stremio-server/server-wrapper.js
+```
 
 ---
 
-## What It Does NOT Do
+## What It Does Not Do
 
-This project is strictly a local engine policy enforcement tool. It is **NOT**:
-- A content provider, scraper, or streaming service.
-- A Debrid client (Real-Debrid, AllDebrid, Premiumize, etc.).
-- A third-party Stremio addon or catalog provider.
-- An external proxy, VPN, or network relay.
-- A tool that eliminates protocol discovery traffic (tracker announces exchanging ~200 bytes of discovery metadata remain active so peers can be located).
+This project is a local engine-policy enforcement tool. It is not a content provider, scraper, streaming service, Debrid client, third-party addon, catalog provider, proxy, VPN, or network relay. It does not eliminate the minimal protocol discovery traffic needed to locate seeders.
 
 ---
 
@@ -72,109 +84,109 @@ This project is strictly a local engine policy enforcement tool. It is **NOT**:
 
 | Layer | Environment | Status | Details |
 |---|---|---|---|
-| **Packaging** | Linux Flatpak (`com.stremio.Stremio`) | **Supported** | Standard Flathub distribution |
-| **Tested Environment** | Fedora 44 + KDE Plasma 6 + Linux 7.1 | **VERIFIED** | Stremio v1.2.0 (EngineFS v4.21.0) |
-| **Other Distributions** | Arch Linux, Ubuntu, Debian, openSUSE | **UNVERIFIED** | Expected to work via Flatpak; not independently tested |
+| **Packaging** | Linux Flatpak (`com.stremio.Stremio`) | **SUPPORTED** | Standard Flathub distribution mechanism |
+| **Controller** | Stremio Mute v1.2.2 | **CURRENT** | Fail-closed wrapper with exact-one structural fingerprints |
+| **Verified environment** | Fedora 44 + KDE Plasma 6 + Linux 7.1 | **VERIFIED** | Stremio v1.2.0 / EngineFS v4.21.0; this is the verified target evidence, not the controller version |
+| **Other distributions** | Arch Linux, Ubuntu, Debian, openSUSE | **UNVERIFIED** | Expected to work through Flatpak but not independently tested by this project |
+| **Native packages** | `.deb`, `.rpm`, AUR, AppImage | **OUT OF SCOPE** | The implementation is designed for the Flatpak user override |
 
-For full compatibility definitions and fingerprint specifications, see [COMPATIBILITY.md](COMPATIBILITY.md).
-
----
-
-## Installation
-
-### Step 1: Clone the Repository
-```bash
-git clone https://github.com/LoneVertex/stremio-mute.git
-cd stremio-mute
-```
-
-### Step 2: Run the Hardened Installer
-```bash
-./scripts/install.sh
-```
-
-**Pre-Flight Guarantee:** `install.sh` validates engine compatibility against Stremio's bundled `server.js` **before** staging the wrapper or applying the Flatpak override. If any fingerprint mismatches, installation aborts without altering your system.
+See [COMPATIBILITY.md](COMPATIBILITY.md) for fingerprint definitions and update behavior.
 
 ---
 
-## Operational Verification
+## Verification States
 
-Inspect operational state at any time:
+Run:
+
 ```bash
 ./scripts/verify.sh
 ```
 
-### State Semantics:
-- **`STATUS: CONFIGURED`**: Static configuration is valid and Stremio is currently idle.
-- **`STATUS: RUNTIME VERIFIED`**: Stremio is active and both the authoritative loopback controller endpoint and heartbeat confirm protected execution.
-- **`STATUS: NOT PROTECTED`**: Stremio is running without complete controller and heartbeat evidence.
-- **`STATUS: INCOMPATIBLE`**: Structural code fingerprints mismatched; the controller remains fail-closed.
-- **`STATUS: NOT INSTALLED`**: The wrapper or exact absolute `SERVER_PATH` configuration is missing or incorrect.
-- **`STATUS: ERROR`**: The verifier cannot safely determine the state.
-
-### Absolute `SERVER_PATH` Rule
-
-The shell expression `$HOME/.stremio-server/server-wrapper.js` is a shorthand used in documentation. The value persisted by Flatpak must be the dynamically computed absolute path for the current user, for example `/home/current-user/.stremio-server/server-wrapper.js`. Never write or expect `SERVER_PATH=~/.stremio-server/server-wrapper.js`; the literal tilde is not expanded by the Flatpak environment or Stremio’s Node process.
+- **`CONFIGURED`** means the static wrapper, exact absolute override, source match, and compatibility checks are valid while Stremio is idle.
+- **`RUNTIME VERIFIED`** means Stremio is running and the controller endpoint and heartbeat confirm protected execution.
+- **`NOT PROTECTED`** means Stremio is running without complete controller evidence.
+- **`INCOMPATIBLE`** means the bundled engine no longer matches the required structural fingerprints; the wrapper remains fail-closed.
+- **`NOT INSTALLED`** means the wrapper or exact absolute override is missing or incorrect.
+- **`ERROR`** means the verifier could not safely determine the state and must not be interpreted as zero upload.
 
 ---
 
 ## Handling Stremio Updates
 
-Because this tool relies on in-memory structural patching, it operates under a **Fail-Closed** safety model:
+After any Stremio or Flatpak update, run verification before streaming:
 
-1. After running `flatpak update com.stremio.Stremio`, run:
-   ```bash
-   ./scripts/verify.sh
-   ```
-2. If verified, launch Stremio normally.
-3. If an update altered `server.js` minification or layout, the controller **fails closed** (`process.exit(1)`) and outputs diagnostics. It will **never silently leak uploads**.
-4. Run `./scripts/diagnose.sh` to generate an issue-safe report and submit a [Compatibility Report](https://github.com/LoneVertex/stremio-mute/issues).
-
----
-
-## Rollback
-
-To restore Stremio to standard default configuration:
 ```bash
-./scripts/rollback.sh
+flatpak update com.stremio.Stremio
+cd ~/stremio-mute
+./scripts/verify.sh
 ```
-This unsets the Flatpak environment override, deletes the canonical `$HOME/.stremio-server/server-wrapper.js` wrapper, removes any legacy sandbox-local wrapper from older releases, and actively verifies removal. Your library, addons, and user settings remain untouched.
+
+If the result is `CONFIGURED`, launch Stremio normally. If the result is `INCOMPATIBLE`, run `./scripts/diagnose.sh` and submit a [compatibility report](https://github.com/LoneVertex/stremio-mute/issues). Do not bypass the fail-closed wrapper by manually writing a different `SERVER_PATH`.
 
 ---
 
-## Known Limitations
+## After Reboot
 
-1. **Version Sensitivity:** Relies on the internal JavaScript structure of Stremio's bundled `server.js`. Upstream code refactors will trigger fail-closed protection and require fingerprint updates.
-2. **Tracker Discovery Metadata:** Exchanging ~200 bytes of tracker announce discovery metadata to locate seeders remains active as required by BitTorrent protocol mechanics.
-3. **Flatpak Packaging Focus:** Designed specifically for Flatpak desktop installations on Linux.
+After restarting the desktop:
+
+```bash
+cd ~/stremio-mute
+./scripts/verify.sh
+```
+
+`CONFIGURED` before launching Stremio is expected. Launch Stremio, start a stream, and run `./scripts/verify.sh` again. Require `RUNTIME VERIFIED` before treating runtime protection as confirmed.
 
 ---
 
-## Architecture & Invariants
+## Rollback and Reinstall
+
+To restore stock Stremio behavior:
+
+```bash
+cd ~/stremio-mute
+./scripts/rollback.sh
+./scripts/verify.sh
+```
+
+After rollback, `NOT INSTALLED` is expected. The script removes the project’s override, canonical wrapper, and legacy wrapper path without removing unrelated Stremio user data. To reinstall and regenerate the current user’s absolute path:
+
+```bash
+./scripts/install.sh
+./scripts/verify.sh
+```
+
+---
+
+## Architecture and Invariants
 
 ```text
-REMOTE PEER WIRE
+Stremio Flatpak
       │
-      ├── [1] Incoming Piece Data (wire._onpiece) ────────► LOCAL DISK CACHE ✅ (Download Active)
+      ▼
+absolute SERVER_PATH
       │
-      ├── [2] Incoming Request (wire._onrequest) ────────► REJECTED by amChoking = true ❌
+      ▼
+server-wrapper.js
       │
-      └── [3] Handler uploadPipe.push(store.read) ──────► BLOCKED by policy error ❌
+      ▼
+in-memory patched server.js
+      │
+      ▼
+torrent engine + local player IPC
 ```
 
-For full protocol analysis and details on why network-layer filtering (nftables/conntrack) was rejected, see [ARCHITECTURE.md](ARCHITECTURE.md).
+The controller enforces three invariants: zero rechoke upload slots, zero upload defaults, and immediate rejection of peer piece requests before disk reads. If any exact-one fingerprint check fails, the wrapper exits instead of running the unmodified server. For the protocol analysis and rejected network-layer alternatives, see [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ---
 
-## Security & Threat Model
+## Security and Limitations
 
-- **No Elevated Privileges:** Executes purely in user space inside the unprivileged Flatpak sandbox (`0644` file permissions). Zero `sudo` or root permissions required.
-- **Loopback Isolation:** Status endpoint (`/zero-upload-controller`) binds exclusively to `127.0.0.1` and exposes no user metadata or stream hashes.
-- For complete security details, see [SECURITY.md](SECURITY.md) and [THREAT-MODEL.md](THREAT-MODEL.md).
+Stremio Mute runs in user space with no `sudo`, root, firewall, systemd, or host network-interface changes. The status endpoint binds to loopback. The design is version-sensitive and depends on the internal JavaScript structure of the bundled Stremio server; upstream refactors can trigger fail-closed behavior and require a compatibility update.
+
+See [SECURITY.md](SECURITY.md), [THREAT-MODEL.md](THREAT-MODEL.md), [TROUBLESHOOTING.md](TROUBLESHOOTING.md), and [COMPATIBILITY.md](COMPATIBILITY.md).
 
 ---
 
-## License & Trademarks
+## License and Trademarks
 
-This repository's controller code and scripts are licensed under the [MIT License](LICENSE).  
-*Stremio is a trademark and product of Smart Code LTD. This project is an independent open-source tool and is not affiliated with or endorsed by Smart Code LTD.*
+This repository’s controller code and scripts are licensed under the [MIT License](LICENSE). Stremio is a trademark and product of Smart Code LTD. This project is an independent open-source tool and is not affiliated with or endorsed by Smart Code LTD.

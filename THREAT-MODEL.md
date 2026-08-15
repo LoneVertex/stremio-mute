@@ -1,7 +1,7 @@
 # Threat Model & Security Policy — Stremio Mute
 
 **Project:** Stremio Mute (`LoneVertex/stremio-mute`)  
-**Scope:** Node.js in-memory wrapper & Flatpak user override  
+**Scope:** Node.js in-memory wrapper, absolute Flatpak user override, and loopback status telemetry
 
 ---
 
@@ -34,6 +34,8 @@
 - **Mitigation by Construction:** The wrapper runs entirely in user space inside the unprivileged Flatpak sandbox (`0644` file permissions). No `sudo`, setuid binaries, or kernel capabilities (`CAP_NET_ADMIN`) are requested or required.
 
 ### Threat 4: Local Port Exposure / IPC Interception
+
+The status server is meaningful only after the wrapper has been loaded through the exact absolute `SERVER_PATH` configured for the current user. A missing, literal-tilde, stale, cross-user, or incorrect path is rejected by `verify.sh` and must not be treated as protected runtime evidence.
 - **Vector:** External entities on LAN attempting to query controller status or stream endpoints.
 - **Risk:** Low.
 - **Mitigation by Construction:** The controller status endpoint (`/zero-upload-controller`) only binds to `127.0.0.1`. CORS headers restrict origin access to local loopback. No sensitive metadata (stream names, user credentials, hashes) is exposed in telemetry.
@@ -43,9 +45,9 @@
 ## 3. Security Guarantees & Non-Goals
 
 ### Guaranteed by Construction:
-- Zero media pieces will be read from disk or transmitted across TCP peer wires when the controller is active.
-- Startup will fail closed if `server.js` structure differs from verified fingerprints.
-- No third-party network services, addons, or external proxies are contacted.
+- When the verified wrapper is active and all three fingerprints match exactly once, the enforced request path rejects peer piece uploads before the patched disk-read pipeline; this is an application-level guarantee, not a substitute for live packet measurement.
+- Startup will fail closed if `server.js` structure differs from the verified fingerprints.
+- The documented setup does not add third-party network services, addons, or external proxies.
 
 ### Non-Goals:
 - The controller does not anonymize IP addresses or replace a VPN. (BitTorrent trackers still see Stremio's IP for peer discovery).

@@ -35,6 +35,7 @@ We do **NOT** accept contributions that:
    bash tests/static/test_syntax.sh
    bash tests/compatibility/test_compatibility_fixtures.sh
    bash tests/integration/test_install_rollback.sh
+   bash tests/static/test_absolute_path.sh
    ```
 3. Run the repository hygiene auditor:
    ```bash

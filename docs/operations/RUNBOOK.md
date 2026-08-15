@@ -1,87 +1,227 @@
-# Operational Runbook — Stremio Mute
+# Operational Runbook — Stremio Mute v1.2.2
 
-**Audience:** System Administrators, Desktop Linux Users, and Power Users  
-**System Target:** Linux (Flatpak Stremio `com.stremio.Stremio`)  
+**Audience:** System administrators, desktop Linux users, and power users
+**System target:** Linux Flatpak Stremio `com.stremio.Stremio`
+**Compatibility model:** Version-sensitive and fail-closed
+
+This runbook is the operational source of truth for the published v1.2.2 documentation. The controller version and the independently verified Stremio engine version are separate; see [COMPATIBILITY.md](../../COMPATIBILITY.md).
 
 ---
 
-## 1. Day-1 Installation & Setup
+## 1. Day-One Installation
 
-### Step 1: Clone Repository
+### 1.1 Clone the published checkout
+
 ```bash
 git clone https://github.com/LoneVertex/stremio-mute.git
 cd stremio-mute
+git checkout v1.2.2
 ```
 
-### Step 2: Install Stremio Mute
+### 1.2 Confirm prerequisites
+
+```bash
+flatpak --version
+git --version
+flatpak info com.stremio.Stremio
+```
+
+The installer requires Flatpak and an installed `com.stremio.Stremio` application. Host Node.js is optional for installation; when present, it provides an additional wrapper syntax check.
+
+### 1.3 Install and verify
+
 ```bash
 ./scripts/install.sh
-```
-*Note: The installer automatically checks Stremio engine compatibility before making changes.*
-
-### Step 3: Verify Static Configuration
-```bash
 ./scripts/verify.sh
 ```
-Confirm output indicates: `STATUS: CONFIGURED`. This confirms static configuration only; it does not claim that Stremio is running.
 
-### Step 4: Launch Stremio & Verify Runtime
-1. Start Stremio from your desktop application launcher or terminal (`flatpak run com.stremio.Stremio`).
-2. Play any video stream.
-3. In a terminal, run:
-   ```bash
-   ./scripts/verify.sh
-   ```
-4. Confirm output indicates: `STATUS: RUNTIME VERIFIED`. This requires the active loopback controller endpoint and heartbeat to respond.
+The installer performs compatibility pre-flight before staging the wrapper or changing the Flatpak override. It stages the wrapper at `$HOME/.stremio-server/server-wrapper.js`, computes the current user’s absolute path, persists that path through `flatpak override --user`, verifies the stored value, and runs the verifier.
+
+When Stremio is stopped, the expected state is:
+
+```text
+STATUS: CONFIGURED
+```
+
+`CONFIGURED` confirms static configuration only. It does not claim that the Stremio server is running.
 
 ---
 
-## 2. Absolute SERVER_PATH Rule
+## 2. Absolute `SERVER_PATH` Rule
 
-The installer computes the wrapper location from the current user’s home directory using the shell expression `$HOME/.stremio-server/server-wrapper.js`, then stores the resulting absolute path in Flatpak. For example, the persisted value may be `/home/current-user/.stremio-server/server-wrapper.js`. The literal `SERVER_PATH=~/.stremio-server/server-wrapper.js` must never be stored because the Flatpak environment and Stremio’s Node process do not expand that tilde representation.
+Use `$HOME/.stremio-server/server-wrapper.js` in shell commands as shorthand for the current user’s home directory. The persisted Flatpak environment value must be the expanded absolute path. For example:
 
-Inspect the actual value with:
+```text
+SERVER_PATH=/home/current-user/.stremio-server/server-wrapper.js
+```
+
+This is not a valid persisted value:
+
+```text
+SERVER_PATH=~/.stremio-server/server-wrapper.js
+```
+
+The Flatpak environment and Stremio’s Node.js process do not expand a literal tilde in this value. Inspect the actual stored configuration with:
 
 ```bash
 flatpak override --user --show com.stremio.Stremio
 ```
 
-The reported `SERVER_PATH` must exactly equal the current user’s absolute wrapper path.
+The `SERVER_PATH` shown there must exactly match the current user’s absolute `$HOME/.stremio-server/server-wrapper.js` path.
 
 ---
 
-## 3. Upstream Stremio Update Procedure
+## 3. Launch and Runtime Verification
 
-When Flatpak updates the Stremio package:
+Launch Stremio from the desktop application menu or from a terminal:
+
 ```bash
-flatpak update com.stremio.Stremio
+flatpak run com.stremio.Stremio
 ```
 
-### Post-Update Operational Check:
-Run the verifier immediately:
+Start a stream, then run:
+
 ```bash
 ./scripts/verify.sh
 ```
 
-- **Scenario A (Status is `CONFIGURED`):** The update preserves the expected internal code structure. Launch Stremio normally.
-- **Scenario B (Status is `INCOMPATIBLE`):** The update modified `server.js` minification or layout.
-  - The controller **fails closed** upon launch, preventing unmuted uploads.
-  - Generate diagnostics:
-    ```bash
-    ./scripts/diagnose.sh
-    ```
-  - Open a [Compatibility Issue](https://github.com/LoneVertex/stremio-mute/issues) with the diagnostic report.
-  - Optional temporary rollback to stock Stremio while awaiting a controller update:
-    ```bash
-    ./scripts/rollback.sh
-    ```
+The expected protected running state is:
+
+```text
+STATUS: RUNTIME VERIFIED
+```
+
+This state requires the controller endpoint and heartbeat to respond. If Stremio is stopped, `CONFIGURED` is correct. Do not treat `ERROR`, `NOT PROTECTED`, or missing telemetry as proof of zero upload.
+
+### 3.1 Restarting Stremio
+
+After closing and reopening Stremio, launch it normally, start a stream, and rerun the verifier:
+
+```bash
+flatpak run com.stremio.Stremio
+cd ~/stremio-mute
+./scripts/verify.sh
+```
+
+Require `RUNTIME VERIFIED` before treating the active runtime as confirmed.
 
 ---
 
-## 4. Clean Rollback Procedure
+## 4. Post-Reboot Procedure
 
-To cleanly remove Stremio Mute and restore stock Stremio configuration:
+After restarting Fedora or another supported Linux desktop:
+
 ```bash
-./scripts/rollback.sh
+cd ~/stremio-mute
+./scripts/verify.sh
 ```
-Confirm output indicates `ROLLBACK SUCCESSFUL`.
+
+Before Stremio is launched, `CONFIGURED` is expected. Launch Stremio and start a stream:
+
+```bash
+flatpak run com.stremio.Stremio
+./scripts/verify.sh
+```
+
+The expected result is `RUNTIME VERIFIED`. If it is not, inspect the exact override and diagnostics before streaming.
+
+---
+
+## 5. Stremio and Flatpak Updates
+
+Always verify after an update and before streaming:
+
+```bash
+flatpak update com.stremio.Stremio
+cd ~/stremio-mute
+./scripts/verify.sh
+```
+
+If the result is `CONFIGURED`, launch Stremio and verify again at runtime. If it is `INCOMPATIBLE`, the bundled `server.js` no longer matches the exact structural fingerprints. The wrapper must fail closed rather than run unverified code. Collect diagnostics:
+
+```bash
+./scripts/diagnose.sh
+```
+
+Submit the report through the [compatibility issue template](https://github.com/LoneVertex/stremio-mute/issues/new?template=compatibility_report.md). Do not manually replace the absolute `SERVER_PATH` with a literal tilde or bypass the wrapper.
+
+---
+
+## 6. Troubleshooting and Diagnostics
+
+Start with the verifier:
+
+```bash
+cd ~/stremio-mute
+./scripts/verify.sh
+```
+
+Inspect the persisted override:
+
+```bash
+flatpak override --user --show com.stremio.Stremio
+```
+
+Generate a sanitized diagnostic snapshot:
+
+```bash
+./scripts/diagnose.sh
+```
+
+For a running server, optional loopback checks are:
+
+```bash
+curl -fsS http://127.0.0.1:11470/heartbeat
+curl -fsS http://127.0.0.1:11470/zero-upload-controller
+```
+
+If either endpoint is unavailable, do not claim runtime protection. Consult [TROUBLESHOOTING.md](../../TROUBLESHOOTING.md) for state-specific handling.
+
+---
+
+## 7. Rollback and Removal Verification
+
+To restore stock Stremio behavior:
+
+```bash
+cd ~/stremio-mute
+./scripts/rollback.sh
+./scripts/verify.sh
+```
+
+A successful removal should result in `STATUS: NOT INSTALLED`. Rollback removes the project’s Flatpak user override, the canonical `$HOME/.stremio-server/server-wrapper.js` wrapper, and any legacy sandbox-local wrapper path. It does not remove unrelated Stremio libraries, addons, or user settings. Rollback is safe to repeat.
+
+---
+
+## 8. Reinstall Procedure
+
+After rollback, reinstall from the published checkout:
+
+```bash
+cd ~/stremio-mute
+git checkout v1.2.2
+./scripts/install.sh
+./scripts/verify.sh
+```
+
+The installer recomputes the current user’s absolute `SERVER_PATH`. It does not reuse a stale path, another user’s path, or a literal tilde. Expect `CONFIGURED` while Stremio is stopped and `RUNTIME VERIFIED` after launching Stremio and starting a stream.
+
+The lifecycle is:
+
+```text
+install → verify → use → rollback → verify removal → reinstall → verify again
+```
+
+---
+
+## 9. Compatibility Failure Procedure
+
+If the verifier reports `INCOMPATIBLE` after an upstream update:
+
+1. Do not stream through the unverified controller.
+2. Run `./scripts/diagnose.sh`.
+3. Submit the diagnostic output using the compatibility issue template.
+4. Use `./scripts/rollback.sh` only if stock Stremio is required temporarily and the consequences are understood.
+5. Wait for a compatibility update before reinstalling Stremio Mute.
+
+The wrapper’s fail-closed behavior is intentional: it exits instead of silently falling back to unmodified `server.js`.

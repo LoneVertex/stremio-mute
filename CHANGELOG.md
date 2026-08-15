@@ -11,7 +11,7 @@ All notable changes to this project are documented in this file.
 - **Exact Verifier Semantics:** `verify.sh` now rejects missing, literal-tilde, stale, cross-user, and incorrect paths while preserving the six-state model and requiring live controller and heartbeat evidence for runtime verification.
 - **Lifecycle Cleanup:** Rollback removes the canonical wrapper and legacy sandbox-local wrapper path, and repeated install, rollback, and reinstall operations are covered by regression tests.
 - **Permanent Regression Coverage:** Added isolated tests for multiple `HOME` values, correct and incorrect overrides, rollback, idempotence, and reinstall behavior.
-- **Documentation Synchronization:** Updated installation, runbook, troubleshooting, compatibility, and README guidance to distinguish `$HOME` expressions from stored absolute values.
+- **Documentation Synchronization:** v1.2.2 documentation establishes the absolute-path rule across installation, runbook, troubleshooting, compatibility, and README guidance; subsequent documentation-only corrections continue to preserve that same published behavior without changing release assets.
 
 ---
 

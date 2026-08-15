@@ -1,10 +1,10 @@
-# Security Policy — Stremio Zero-Upload Controller
+# Security Policy — Stremio Mute
 
 ## Supported Versions
 
 | Version | Supported |
 |---|---|
-| 1.2.x | Yes |
+| 1.2.x, including v1.2.2 | Yes |
 | < 1.2.0 | No |
 
 ---
@@ -20,4 +20,4 @@ If you discover a security issue or unexpected upload leakage in the controller:
    - Output of `./scripts/diagnose.sh`
    - Reproduction steps and captured packet telemetry if available
 
-We will acknowledge reports within 48 hours and work on a fail-closed fix.
+We will acknowledge reports within 48 hours where possible and prioritize fail-closed fixes for confirmed safety issues.

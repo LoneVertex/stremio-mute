@@ -1,75 +1,181 @@
 # Installation Guide — Stremio Mute
 
-This guide explains how to install, verify, and manage Stremio Mute on Linux.
+This guide explains how to install, verify, operate, update, roll back, and reinstall Stremio Mute v1.2.2 on a supported Linux Flatpak desktop.
+
+> **Important:** Use `$HOME` in shell commands when referring to the current user’s home directory. The Flatpak `SERVER_PATH` value itself is stored as an **absolute filesystem path**. The literal `SERVER_PATH=~/.stremio-server/server-wrapper.js` is the historical broken form and must never be configured.
 
 ---
 
 ## Prerequisites
 
-1. **Linux Distribution:** Modern Linux distribution with Flatpak (Fedora, Arch Linux, Ubuntu, Debian, openSUSE, etc.).
-2. **Flatpak:** `flatpak` CLI installed (`flatpak --version`).
-3. **Stremio Flatpak:** Stremio installed via Flatpak (`com.stremio.Stremio` from Flathub).
-   ```bash
-   flatpak install flathub com.stremio.Stremio
-   ```
-4. **Node.js / Bash:** Standard Node.js (`node --version`) and Bash tools for script verification.
+1. **Linux with Flatpak:** A supported Linux desktop with the `flatpak` CLI available.
+2. **Stremio Flatpak:** Stremio installed as `com.stremio.Stremio`, preferably from Flathub.
+3. **Bash and Git:** Bash is required by the scripts, and Git is required for the checkout and later updates.
+4. **Host Node.js:** Not required for installation. When available, the installer uses host Node.js for an additional wrapper syntax check; the repository test suite also validates JavaScript syntax.
+
+Check the required host tools and Stremio installation:
+
+```bash
+flatpak --version
+git --version
+flatpak info com.stremio.Stremio
+```
+
+If Stremio is not installed, install it through Flatpak:
+
+```bash
+flatpak install flathub com.stremio.Stremio
+```
 
 ---
 
 ## Automated Installation
 
-### Step 1: Clone the Repository
+### Step 1: Clone the v1.2.2 Checkout
+
 ```bash
 git clone https://github.com/LoneVertex/stremio-mute.git
 cd stremio-mute
+git checkout v1.2.2
 ```
 
-### Step 2: Run the Hardened Installer
+If you already have the checkout, update it before reinstalling:
+
+```bash
+cd ~/stremio-mute
+git fetch --tags origin
+git checkout v1.2.2
+```
+
+### Step 2: Run the Installer
+
 ```bash
 ./scripts/install.sh
 ```
 
-**Installer Execution Flow & Pre-Flight Order:**
-1. **Detect Prerequisites:** Verifies `flatpak` and `node` are available.
-2. **Inspect Stremio Flatpak:** Checks `com.stremio.Stremio` is installed.
-3. **Pre-Flight Compatibility Validation:** Runs in-sandbox assertion checking that all 3 fingerprints match `server.js` **before** modifying anything. If a mismatch is detected, installation halts cleanly with code 2.
-4. **Validate Wrapper Syntax:** Performs `node -c` syntax check.
-5. **Stage Wrapper:** Copies `src/server-wrapper.js` to `$HOME/.stremio-server/server-wrapper.js` (`0644`).
-6. **Apply Flatpak Override:** Computes the current user’s absolute wrapper path and stores it with `flatpak override --user`; for example, `/home/current-user/.stremio-server/server-wrapper.js`.
-7. **Verify the Persisted Override:** Confirms `flatpak override --user --show com.stremio.Stremio` contains exactly `SERVER_PATH=/home/current-user/.stremio-server/server-wrapper.js` for the current user.
-8. **Run Verification:** Executes `./scripts/verify.sh`.
+The installer performs the following operations in order:
 
-The shell expression `$HOME/.stremio-server/server-wrapper.js` is only a convenient way to describe the path. The actual Flatpak environment value is an absolute path computed from the current user’s home directory. Never configure or document `SERVER_PATH=~/.stremio-server/server-wrapper.js` as the persisted value; Flatpak and the Stremio runtime do not expand that literal tilde.
+1. It checks for the Flatpak CLI and confirms that `com.stremio.Stremio` is installed.
+2. It runs the in-sandbox compatibility pre-flight against Stremio’s bundled `server.js` before staging files or changing the Flatpak override.
+3. It verifies the wrapper source and, when host Node.js is available, performs a syntax check.
+4. It stages the wrapper at `$HOME/.stremio-server/server-wrapper.js` with mode `0644` and verifies that the staged bytes match the repository source.
+5. It computes the current user’s absolute wrapper path and stores that value in the Flatpak user override.
+6. It verifies that `flatpak override --user --show com.stremio.Stremio` contains the exact absolute `SERVER_PATH`.
+7. It runs `./scripts/verify.sh`.
+
+The shell expression `$HOME/.stremio-server/server-wrapper.js` is only shorthand for locating the current user’s home directory. For a user whose home is `/home/current-user`, the persisted value must be:
+
+```text
+SERVER_PATH=/home/current-user/.stremio-server/server-wrapper.js
+```
+
+Do not manually write `SERVER_PATH=~/.stremio-server/server-wrapper.js`. Flatpak and Stremio’s Node process do not expand that literal tilde.
 
 ---
 
-## Operational Verification
+## Verification and Launch
 
-Inspect installation health at any time:
+Run the verifier at any time:
+
 ```bash
 ./scripts/verify.sh
 ```
 
-- **Before launching Stremio:** The output will display `STATUS: CONFIGURED`.
-- **After launching Stremio and confirming the loopback controller and heartbeat:** The output will display `STATUS: RUNTIME VERIFIED`.
+When Stremio is stopped, a correctly installed v1.2.2 checkout should report:
 
----
+```text
+STATUS: CONFIGURED
+```
 
-## Launching Stremio
+`CONFIGURED` confirms the wrapper, exact absolute override, source match, and compatibility checks. It does not claim that the Stremio server is running.
 
-Launch Stremio normally through your desktop menu (KDE Plasma Application Launcher, KRunner, GNOME menu) or via CLI:
+Launch Stremio normally through the desktop application launcher or the command line:
+
 ```bash
 flatpak run com.stremio.Stremio
 ```
 
-Flatpak automatically injects `SERVER_PATH`, activating Stremio Mute in memory.
+After the streaming server is running, verify again:
+
+```bash
+./scripts/verify.sh
+```
+
+A protected running server should report:
+
+```text
+STATUS: RUNTIME VERIFIED
+```
+
+`RUNTIME VERIFIED` requires the active loopback controller and heartbeat evidence. If the server is not running, `CONFIGURED` is expected rather than a failure.
 
 ---
 
-## Rollback & Uninstallation
+## After Reboot
 
-To cleanly remove Stremio Mute and restore default Stremio behavior:
+After restarting Fedora or another supported Linux desktop:
+
 ```bash
-./scripts/rollback.sh
+cd ~/stremio-mute
+./scripts/verify.sh
 ```
-This unsets the Flatpak user environment override and removes the canonical `$HOME/.stremio-server/server-wrapper.js` wrapper. It also removes the legacy sandbox-local wrapper path left by older releases, if present. Your library, addons, and user settings are preserved.
+
+If Stremio has not been launched yet, `STATUS: CONFIGURED` is expected. Launch Stremio, start a stream, and run the verifier again:
+
+```bash
+flatpak run com.stremio.Stremio
+./scripts/verify.sh
+```
+
+The expected running state is `STATUS: RUNTIME VERIFIED`. For optional manual checks, inspect the loopback endpoints documented in [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
+
+---
+
+## After a Stremio or Flatpak Update
+
+Because Stremio Mute patches exact internal structures in the bundled `server.js`, always verify before streaming after an update:
+
+```bash
+flatpak update com.stremio.Stremio
+cd ~/stremio-mute
+./scripts/verify.sh
+```
+
+If the verifier reports `INCOMPATIBLE`, do not stream through the controller. The wrapper is designed to fail closed. Generate a diagnostic report and submit a [compatibility issue](https://github.com/LoneVertex/stremio-mute/issues):
+
+```bash
+./scripts/diagnose.sh
+```
+
+---
+
+## Rollback, Removal Verification, and Reinstall
+
+To restore stock Stremio behavior:
+
+```bash
+cd ~/stremio-mute
+./scripts/rollback.sh
+./scripts/verify.sh
+```
+
+After a successful rollback, the verifier should report `STATUS: NOT INSTALLED`. Rollback removes the project’s Flatpak user override, the canonical `$HOME/.stremio-server/server-wrapper.js` wrapper, and any legacy sandbox-local wrapper left by older releases. It does not remove unrelated Stremio library data, addons, or user settings.
+
+To reinstall after rollback:
+
+```bash
+./scripts/install.sh
+./scripts/verify.sh
+```
+
+Reinstallation recomputes and persists the current user’s absolute `SERVER_PATH`; it does not reuse a literal tilde value or a path belonging to another user. Expect `CONFIGURED` while Stremio is stopped, followed by `RUNTIME VERIFIED` after launching Stremio and starting a stream.
+
+---
+
+## Further Documentation
+
+- [README.md](README.md) — project overview and quickstart
+- [ARCHITECTURE.md](ARCHITECTURE.md) — controller lifecycle and fail-closed design
+- [COMPATIBILITY.md](COMPATIBILITY.md) — supported, verified, unverified, and incompatible states
+- [TROUBLESHOOTING.md](TROUBLESHOOTING.md) — diagnostics and runtime failure checks
+- [Operational Runbook](docs/operations/RUNBOOK.md) — complete day-to-day procedures
