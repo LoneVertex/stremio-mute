@@ -23,7 +23,7 @@ jobs:
           TARGET_SHA: ${{ github.sha }}
         run: |
           success_count=$(gh api --method GET "repos/${TARGET_REPOSITORY}/actions/runs?head_sha=${TARGET_SHA}&status=completed" \
-            --jq "[.workflow_runs[] | select(.head_sha == \\\"${TARGET_SHA}\\\" and .name == \\\"CI\\\" and .conclusion == \\\"success\\\")] | length")
+            --jq "[.workflow_runs[] | select(.head_sha == \"${TARGET_SHA}\" and .name == \"CI\" and .conclusion == \"success\")] | length")
           if [ "${success_count}" -lt 1 ]; then
             echo "No successful CI run exists for ${TARGET_SHA}; refusing to publish a release."
             exit 1
