@@ -133,7 +133,7 @@ done < <(find "${REPO_ROOT}" -type f -name "*.js" -not -path '*/.git/*')
 echo ""
 echo "── 5. Version Consistency ──────────────────────────────────────────────────"
 
-VERSION_FILE_VAL=$(cat "${REPO_ROOT}/VERSION" | tr -d '[:space:]')
+VERSION_FILE_VAL=$(tr -d '[:space:]' < "${REPO_ROOT}/VERSION")
 WRAPPER_VERSION_VAL=$(grep "CONTROLLER_VERSION = " "${REPO_ROOT}/src/server-wrapper.js" | head -n1 | grep -oE "[0-9]+\.[0-9]+\.[0-9]+")
 
 if [ "${VERSION_FILE_VAL}" = "${WRAPPER_VERSION_VAL}" ]; then
