@@ -7,7 +7,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 DIST_DIR="${REPO_ROOT}/dist"
-VERSION=$(cat "${REPO_ROOT}/VERSION" | tr -d '[:space:]')
+VERSION=$(tr -d '[:space:]' < "${REPO_ROOT}/VERSION")
 PKG_NAME="stremio-mute-v${VERSION}"
 STAGE_DIR="/tmp/${PKG_NAME}"
 

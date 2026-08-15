@@ -19,10 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
----
-
-### Third-Party Software Notice
-Stremio is a separate proprietary software application and trademark owned by Smart Code LTD.
-This repository contains independent wrapper and configuration scripts licensed under MIT.
-This license does NOT apply to the Stremio application or any third-party software bundled by Stremio.

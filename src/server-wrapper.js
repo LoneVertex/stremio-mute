@@ -26,7 +26,7 @@ const http = require('http');
 const Module = require('module');
 
 const CONTROLLER_NAME = 'stremio-mute';
-const CONTROLLER_VERSION = '1.2.0';
+const CONTROLLER_VERSION = '1.2.1';
 const TARGET_SERVER_PATH = process.env.STREMIO_TARGET_SERVER_PATH || '/app/libexec/stremio/server.js';
 
 // Idempotence guard

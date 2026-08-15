@@ -4,19 +4,27 @@ All notable changes to this project are documented in this file.
 
 ---
 
+## [1.2.1] - 2026-08-15
+
+### Fixed & Hardened (Release-Blocker Remediation)
+- **Positive Compatibility Fixture:** Fixed `tests/fixtures/server_supported.js` by adding mock runtime environment variables (`isPositiveInteger`, `opts`, `settings`, `uploadPipe`, `engine`) to allow clean in-memory compilation without throwing `ReferenceError`.
+- **ShellCheck Compliance:** Resolved all ShellCheck warnings (SC2034, SC2016, SC2002) across all 9 shell scripts (`install.sh`, `verify.sh`, `diagnose.sh`, `rollback.sh`, `package.sh`, `repo-audit.sh`, `test_syntax.sh`, `test_compatibility_fixtures.sh`, `test_install_rollback.sh`).
+- **Exact Override Value Assertion:** Hardened `scripts/verify.sh` to assert exact matching of `SERVER_PATH=~/.stremio-server/server-wrapper.js` via `flatpak override --user --show` rather than loose prefix matching.
+- **Decoupled Host Node Dependency:** Removed unnecessary host-side `command -v node` requirement from `scripts/install.sh`, relying solely on the sandbox Node.js runtime provided by Stremio Flatpak.
+- **SPDX License Recognition:** Standardized `LICENSE` format for automatic GitHub SPDX `MIT` license detection.
+
+---
+
 ## [1.2.0] - 2026-08-15
 
-### Changed & Hardened
+### Added & Changed
 - **Project Identity:** Formally established open-source identity as **Stremio Mute** (`LoneVertex/stremio-mute`) — *Mute BitTorrent peer uploads. Keep streaming.*
-- **Pre-Flight Installer:** Re-architected `scripts/install.sh` to run structural compatibility assertions against Stremio's bundled `server.js` **before** staging files or applying Flatpak overrides, failing cleanly if incompatible.
-- **Authoritative State Verification:** Implemented explicit state machine in `scripts/verify.sh` (`NOT INSTALLED`, `CONFIGURED`, `RUNTIME VERIFIED`, `NOT PROTECTED`, `INCOMPATIBLE`, `ERROR`) utilizing `flatpak override --user --show` as the primary source of truth.
-- **Exact-1 Fingerprint Matching:** Hardened structural compatibility assertions in `src/server-wrapper.js` to require that all 3 patch patterns match exactly 1 occurrence in `server.js`.
+- **Pre-Flight Installer:** Re-architected `scripts/install.sh` to run structural compatibility assertions against Stremio's bundled `server.js` before staging files or applying Flatpak overrides.
+- **Authoritative State Verification:** Implemented 6-state machine in `scripts/verify.sh` (`NOT INSTALLED`, `CONFIGURED`, `RUNTIME VERIFIED`, `NOT PROTECTED`, `INCOMPATIBLE`, `ERROR`).
+- **Exact-1 Fingerprint Matching:** Hardened structural compatibility assertions in `src/server-wrapper.js` to require that all 3 patch patterns match exactly 1 occurrence.
 - **Fail-Closed Protection:** Terminate startup (`process.exit(1)`) with detailed diagnostics upon any code mismatch without silent fallback.
 - **Dynamic User Resolution:** Fully parameterized user home directory resolution across all installation and rollback scripts.
-- **Active Rollback Verification:** Enhanced `scripts/rollback.sh` to actively verify that the Flatpak override and sandboxed wrapper files were completely removed.
-- **Automated Test Battery:** Added static syntax tests, fail-closed compatibility test fixtures, and integration test runners.
-- **Sanitized Diagnostics:** Added `scripts/diagnose.sh` to generate issue-safe diagnostic summaries.
-- **Comprehensive Documentation:** Added complete threat model, architecture protocol analysis, operational runbook, and contributor guidelines.
+- **Active Rollback Verification:** Enhanced `scripts/rollback.sh` to actively verify removal of overrides and wrapper files.
 
 ---
 

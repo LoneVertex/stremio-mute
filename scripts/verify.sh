@@ -78,16 +78,14 @@ fi
 TOTAL_CHECKS=$((TOTAL_CHECKS+1))
 # Primary source of truth: flatpak override --user --show
 OVERRIDE_SHOW=$(flatpak override --user --show "${APP_ID}" 2>/dev/null || echo "")
-if echo "${OVERRIDE_SHOW}" | grep -q "SERVER_PATH="; then
-  VAL=$(echo "${OVERRIDE_SHOW}" | grep "SERVER_PATH=" | head -n1)
-  echo "  [PASS] Flatpak user override active (CLI: ${VAL})"
+if echo "${OVERRIDE_SHOW}" | grep -Fxq "${EXPECTED_OVERRIDE_VAL}"; then
+  echo "  [PASS] Flatpak user override active and verified (${EXPECTED_OVERRIDE_VAL})"
   PASSED_CHECKS=$((PASSED_CHECKS+1))
-elif [ -f "${OVERRIDE_FILE}" ] && grep -q "SERVER_PATH=" "${OVERRIDE_FILE}" 2>/dev/null; then
-  VAL=$(grep "SERVER_PATH=" "${OVERRIDE_FILE}" | head -n1)
-  echo "  [PASS] Flatpak override active (Fallback file check: ${VAL})"
+elif [ -f "${OVERRIDE_FILE}" ] && grep -Fxq "${EXPECTED_OVERRIDE_VAL}" "${OVERRIDE_FILE}" 2>/dev/null; then
+  echo "  [PASS] Flatpak override active (Fallback file check: ${EXPECTED_OVERRIDE_VAL})"
   PASSED_CHECKS=$((PASSED_CHECKS+1))
 else
-  echo "  [FAIL] Flatpak user environment override for SERVER_PATH is missing"
+  echo "  [FAIL] Flatpak user environment override for SERVER_PATH is missing or mismatched (expected: ${EXPECTED_OVERRIDE_VAL})"
   ERRORS=$((ERRORS+1))
   NOT_INSTALLED=true
 fi
@@ -113,7 +111,7 @@ if (p1 === 1 && p2 === 1 && p3 === 1) {
   console.log("MATCH_EXACT_ONE");
   process.exit(0);
 } else {
-  console.log(`MISMATCH: p1=${p1} p2=${p2} p3=${p3}`);
+  console.log("MISMATCH: p1=" + p1 + " p2=" + p2 + " p3=" + p3);
   process.exit(2);
 }
 ' 2>/dev/null || echo "CHECK_FAILED")

@@ -6,7 +6,6 @@ set -uo pipefail
 
 APP_ID="com.stremio.Stremio"
 CONTROLLER_FILE="${HOME}/.var/app/${APP_ID}/.stremio-server/server-wrapper.js"
-OVERRIDE_FILE="${HOME}/.local/share/flatpak/overrides/${APP_ID}"
 
 echo "================================================================================"
 echo " STREMIO MUTE — DIAGNOSTIC REPORT"
@@ -59,9 +58,9 @@ console.log("- server.js size: " + code.length + " bytes");
 const p1 = (code.split("var rechokeIntervalId, rechokeSlots = !1 === opts.uploads || 0 === opts.uploads ? 0 : +opts.uploads || 5").length - 1);
 const p2 = (code.split("MIN_PEERS_FOR_STABLE = isPositiveInteger(settings.btMinPeersForStable) ? settings.btMinPeersForStable : 5, defaults = {").length - 1);
 const p3 = (code.split("uploadPipe.push(engine.store.read, index, (function(err, buffer) {").length - 1);
-console.log(`- Fingerprint 1 (rechokeSlots): count=${p1} (expected 1)`);
-console.log(`- Fingerprint 2 (defaults.uploads): count=${p2} (expected 1)`);
-console.log(`- Fingerprint 3 (wire.on request): count=${p3} (expected 1)`);
+console.log("- Fingerprint 1 (rechokeSlots): count=" + p1 + " (expected 1)");
+console.log("- Fingerprint 2 (defaults.uploads): count=" + p2 + " (expected 1)");
+console.log("- Fingerprint 3 (wire.on request): count=" + p3 + " (expected 1)");
 ' 2>/dev/null || echo "- Fingerprint check failed to execute."
 
 echo ""

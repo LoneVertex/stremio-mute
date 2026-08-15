@@ -24,10 +24,7 @@ if ! command -v flatpak &>/dev/null; then
   echo "  [ERROR] 'flatpak' command not found. Flatpak is required." >&2
   exit 1
 fi
-if ! command -v node &>/dev/null; then
-  echo "  [ERROR] 'node' command not found. Node.js is required for verification." >&2
-  exit 1
-fi
+echo "  [PASS] Flatpak CLI detected."
 
 # 2. Inspect Stremio Flatpak
 echo "[2/7] Inspecting Flatpak installation for ${APP_ID}..."
@@ -36,6 +33,7 @@ if ! flatpak info "${APP_ID}" &>/dev/null; then
   echo "  Please install it first with: flatpak install flathub ${APP_ID}" >&2
   exit 1
 fi
+echo "  [PASS] ${APP_ID} Flatpak installation confirmed."
 
 # 3. Pre-Flight Compatibility Validation (Must validate BEFORE activation)
 echo "[3/7] Running pre-flight compatibility check against Stremio engine..."
@@ -55,7 +53,7 @@ if (p1 && p2 && p3) {
   console.log("COMPAT_OK");
   process.exit(0);
 } else {
-  console.log(`COMPAT_FAIL: p1=${p1} p2=${p2} p3=${p3}`);
+  console.log("COMPAT_FAIL: p1=" + p1 + " p2=" + p2 + " p3=" + p3);
   process.exit(2);
 }
 ' 2>/dev/null || echo "COMPAT_ERR")
@@ -68,14 +66,13 @@ if [ "${COMPAT_CHECK}" != "COMPAT_OK" ]; then
 fi
 echo "  [PASS] Stremio server.js structural fingerprints verified compatible (exact-1 match)."
 
-# 4. Validate Wrapper Syntax
-echo "[4/7] Validating wrapper script syntax..."
+# 4. Validate Wrapper File Presence
+echo "[4/7] Validating wrapper source file..."
 if [ ! -f "${WRAPPER_SRC}" ]; then
   echo "  [ERROR] Source wrapper missing at: ${WRAPPER_SRC}" >&2
   exit 1
 fi
-node -c "${WRAPPER_SRC}"
-echo "  [PASS] Wrapper syntax validated."
+echo "  [PASS] Source wrapper present at: ${WRAPPER_SRC}"
 
 # 5. Stage Wrapper into Sandbox Storage
 echo "[5/7] Staging server-wrapper.js into Stremio sandbox storage..."

@@ -1,6 +1,6 @@
 # Compatibility Matrix & Update Model — Stremio Mute
 
-**Controller Version:** `1.2.0`  
+**Controller Version:** `1.2.1`  
 **Classification:** `PASS WITH VERSION-SENSITIVITY`  
 
 ---
