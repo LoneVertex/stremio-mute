@@ -1,4 +1,4 @@
-# Frequently Asked Questions — Stremio Mute v1.2.3
+# Frequently Asked Questions — Stremio Mute v1.2.4
 
 ### Will this reduce or slow down my streaming download speed?
 
@@ -6,13 +6,13 @@ Stremio Mute is designed to suppress local BitTorrent media-piece uploads while 
 
 ### Why is `SERVER_PATH` an absolute path?
 
-Flatpak passes the configured environment value to Stremio’s Node.js process. A literal tilde inside that value is not expanded as shell syntax. The installer therefore computes and stores the current user’s absolute wrapper path, for example:
+Flatpak passes the configured environment value to Stremio’s Node.js process. A literal tilde inside that value is not expanded as shell syntax. The installer therefore computes and stores the current user’s absolute app-owned wrapper path, for example:
 
 ```text
-SERVER_PATH=/home/current-user/.stremio-server/server-wrapper.js
+SERVER_PATH=/home/current-user/.var/app/com.stremio.Stremio/.stremio-server/server-wrapper.js
 ```
 
-Use `$HOME/.stremio-server/server-wrapper.js` in shell commands as shorthand only. Do not manually configure `SERVER_PATH=~/.stremio-server/server-wrapper.js`.
+Use `$HOME/.var/app/com.stremio.Stremio/.stremio-server/server-wrapper.js` in shell commands as shorthand only. The former `$HOME/.stremio-server/server-wrapper.js` host-only location is legacy. Do not manually configure the **OLD / INVALID / HISTORICAL** `SERVER_PATH=~/.stremio-server/server-wrapper.js` form.
 
 ### What should I do after a reboot?
 
@@ -27,7 +27,7 @@ cd ~/stremio-mute
 
 ### Why does `verify.sh` say `CONFIGURED` instead of `RUNTIME VERIFIED`?
 
-`CONFIGURED` means static installation checks pass while Stremio is idle. `RUNTIME VERIFIED` requires the Stremio server to be running, the controller to be active, the heartbeat to respond, the runtime version to match `VERSION`, the endpoint `sourceSha256` to match the installed wrapper, and the upload-suppression invariants to be present. Launch Stremio and start a stream before running the verifier again.
+`CONFIGURED` means the canonical app-owned installation checks pass while Stremio is idle, including exact override, repository byte match, sandbox visibility, and legacy cleanup. `RUNTIME VERIFIED` additionally requires the Stremio server to be running, the controller to be active, the heartbeat to respond, the runtime version to match `VERSION`, the endpoint `sourceSha256` to match the canonical installed wrapper, no legacy wrapper to compete, and the upload-suppression invariants to be present. Launch Stremio and start a stream before running the verifier again.
 
 ### What should I do after a Stremio update?
 
@@ -43,18 +43,18 @@ If the result is `INCOMPATIBLE`, run `./scripts/diagnose.sh` and submit a compat
 
 ### Why can the application fail after an old rollback?
 
-Older installations may have left a sandbox-local wrapper or a stale override. v1.2.3 rollback removes the canonical wrapper, the legacy wrapper location, and the project’s exact Flatpak override. Verify removal with:
+Older installations may have left a host-only wrapper or a stale override. v1.2.4 rollback removes the canonical app-owned wrapper, the legacy host wrapper, and the project’s exact Flatpak override. Verify removal with:
 
 ```bash
 ./scripts/rollback.sh
 ./scripts/verify.sh
 ```
 
-`NOT INSTALLED` is the expected state after a successful rollback. Reinstall with `./scripts/install.sh` to regenerate the current user’s absolute path.
+`NOT INSTALLED` is the expected state after a successful rollback. Reinstall with `./scripts/install.sh` to regenerate the current user’s canonical app-owned absolute path and prove sandbox visibility.
 
 ### Why does the installer stop Stremio?
 
-A Node process keeps the wrapper it loaded in memory. Replacing the wrapper file on disk does not change a process that is already running, so it could otherwise continue reporting an older controller version. v1.2.3 stops a running Stremio process before deploying new wrapper bytes; the next launch loads the current release.
+A Node process keeps the wrapper it loaded in memory. Replacing the wrapper file on disk does not change a process that is already running, so it could otherwise continue reporting an older controller version. v1.2.4 stops a running Stremio process before deploying new wrapper bytes, removes the legacy host wrapper, and stages the canonical app-owned wrapper; the next launch loads the current release.
 
 ### Why can a running process report an older controller version?
 
@@ -62,7 +62,7 @@ The endpoint reports the version captured when the wrapper process started. If i
 
 ### What does `sourceSha256` mean?
 
-`sourceSha256` is the SHA256 identity of the wrapper file that is executing the controller. `verify.sh` compares it with the installed wrapper bytes and also requires the endpoint version to match the repository `VERSION`. A mismatch means the currently running process is not positively identified as the expected deployment.
+`sourceSha256` is the SHA256 identity of the wrapper file that is executing the controller. `verify.sh` compares it with the canonical app-owned wrapper bytes and also requires the endpoint version to match the repository `VERSION`. A mismatch means the currently running process is not positively identified as the expected deployment.
 
 ### How can I verify the running controller?
 

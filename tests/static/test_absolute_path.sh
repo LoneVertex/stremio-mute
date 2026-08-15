@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# tests/static/test_absolute_path.sh — Absolute SERVER_PATH Regression Tests
-# Reproduces the former literal-tilde bug entirely through an isolated Flatpak mock.
+# tests/static/test_absolute_path.sh — Canonical Flatpak-visible SERVER_PATH tests
+# Reproduces the old host-only path failure through an isolated Flatpak mock.
 
 set -u
 
@@ -25,8 +25,16 @@ case "${1:-}" in
   info)
     exit 0
     ;;
+  ps)
+    exit 0
+    ;;
+  kill)
+    exit 0
+    ;;
   run)
-    if printf '%s\n' "$*" | grep -Fq 'MATCH_EXACT_ONE'; then
+    if printf '%s\n' "$*" | grep -Fq -- 'STREMIO_MUTE_PROBE_PATH='; then
+      printf '%s\n' 'VISIBLE'
+    elif printf '%s\n' "$*" | grep -Fq 'MATCH_EXACT_ONE'; then
       printf '%s\n' 'MATCH_EXACT_ONE'
     else
       printf '%s\n' 'COMPAT_OK'
@@ -77,35 +85,38 @@ run_with_env() {
 }
 
 printf '%s\n' '================================================================================'
-printf '%s\n' ' RUNNING ABSOLUTE SERVER_PATH REGRESSION TESTS'
+printf '%s\n' ' RUNNING CANONICAL FLATPAK PATH REGRESSION TESTS'
 printf '%s\n' '================================================================================'
 
 STATE_A="${TMP_DIR}/state-a"
 LOG_A="${TMP_DIR}/install-a.log"
+CANONICAL_A="${MOCK_HOME_A}/.var/app/com.stremio.Stremio/.stremio-server/server-wrapper.js"
+LEGACY_A="${MOCK_HOME_A}/.stremio-server/server-wrapper.js"
 if run_with_env "${MOCK_HOME_A}" "${STATE_A}" bash "${INSTALLER}" >"${LOG_A}" 2>&1; then
-  EXPECTED_A="${MOCK_HOME_A}/.stremio-server/server-wrapper.js"
-  if grep -Fxq "SERVER_PATH=${EXPECTED_A}" "${STATE_A}" && [ -f "${EXPECTED_A}" ]; then
-    pass_test 'install.sh computes and persists an absolute path for HOME A'
+  if grep -Fxq "SERVER_PATH=${CANONICAL_A}" "${STATE_A}" && [ -f "${CANONICAL_A}" ] && [ ! -e "${LEGACY_A}" ]; then
+    pass_test 'install.sh selects and persists the canonical Flatpak-visible path'
   else
-    fail_test 'install.sh computes and persists an absolute path for HOME A'
+    fail_test 'install.sh selects and persists the canonical Flatpak-visible path'
   fi
   if ! grep -Fq 'SERVER_PATH=~/.stremio-server/server-wrapper.js' "${LOG_A}"; then
-    pass_test 'installer output contains no literal-tilde SERVER_PATH'
+    pass_test 'installer output contains no obsolete literal-tilde path'
   else
-    fail_test 'installer output contains no literal-tilde SERVER_PATH'
+    fail_test 'installer output contains no obsolete literal-tilde path'
   fi
 else
+  cat "${LOG_A}" >&2
   fail_test 'install.sh succeeds in the isolated Flatpak mock'
 fi
 
 if run_with_env "${MOCK_HOME_A}" "${STATE_A}" bash "${VERIFIER}" >"${TMP_DIR}/verify-correct.out" 2>&1; then
   if grep -Fq 'STATUS: CONFIGURED' "${TMP_DIR}/verify-correct.out"; then
-    pass_test 'verify.sh accepts the exact absolute path'
+    pass_test 'verify.sh accepts the canonical absolute path and visibility proof'
   else
-    fail_test 'verify.sh accepts the exact absolute path'
+    fail_test 'verify.sh accepts the canonical absolute path and visibility proof'
   fi
 else
-  fail_test 'verify.sh returns success for the exact absolute path'
+  cat "${TMP_DIR}/verify-correct.out" >&2
+  fail_test 'verify.sh returns success for the canonical path'
 fi
 
 printf '%s\n' 'SERVER_PATH=~/.stremio-server/server-wrapper.js' > "${STATE_A}"
@@ -130,16 +141,28 @@ else
   fi
 fi
 
-mkdir -p "${MOCK_HOME_A}/.var/app/com.stremio.Stremio/.stremio-server"
-printf '%s\n' legacy > "${MOCK_HOME_A}/.var/app/com.stremio.Stremio/.stremio-server/server-wrapper.js"
+printf '%s\n' "SERVER_PATH=${LEGACY_A}" > "${STATE_A}"
+if run_with_env "${MOCK_HOME_A}" "${STATE_A}" bash "${VERIFIER}" >"${TMP_DIR}/verify-host-only.out" 2>&1; then
+  fail_test 'verify.sh rejects the old host-only wrapper path'
+else
+  if grep -Fq 'STATUS: NOT INSTALLED' "${TMP_DIR}/verify-host-only.out"; then
+    pass_test 'verify.sh rejects the old host-only wrapper path'
+  else
+    fail_test 'verify.sh rejects the old host-only wrapper path with a clear state'
+  fi
+fi
+
+mkdir -p "${MOCK_HOME_A}/.stremio-server"
+printf '%s\n' legacy > "${LEGACY_A}"
 rm -f "${STATE_A}"
 if run_with_env "${MOCK_HOME_A}" "${STATE_A}" bash "${ROLLBACK}" >"${TMP_DIR}/rollback.out" 2>&1; then
-  if [ ! -e "${MOCK_HOME_A}/.stremio-server/server-wrapper.js" ] && [ ! -e "${MOCK_HOME_A}/.var/app/com.stremio.Stremio/.stremio-server/server-wrapper.js" ] && [ ! -f "${STATE_A}" ]; then
+  if [ ! -e "${CANONICAL_A}" ] && [ ! -e "${LEGACY_A}" ] && [ ! -f "${STATE_A}" ]; then
     pass_test 'rollback removes canonical and legacy wrappers and exact override'
   else
     fail_test 'rollback removes canonical and legacy wrappers and exact override'
   fi
 else
+  cat "${TMP_DIR}/rollback.out" >&2
   fail_test 'rollback succeeds when state is already absent'
 fi
 
@@ -150,28 +173,29 @@ else
 fi
 
 STATE_B="${TMP_DIR}/state-b"
+CANONICAL_B="${MOCK_HOME_B}/.var/app/com.stremio.Stremio/.stremio-server/server-wrapper.js"
 if run_with_env "${MOCK_HOME_B}" "${STATE_B}" bash "${INSTALLER}" >"${TMP_DIR}/install-b.out" 2>&1; then
-  EXPECTED_B="${MOCK_HOME_B}/.stremio-server/server-wrapper.js"
-  if grep -Fxq "SERVER_PATH=${EXPECTED_B}" "${STATE_B}" && [ -f "${EXPECTED_B}" ]; then
-    pass_test 'different HOME values produce the corresponding absolute path'
+  if grep -Fxq "SERVER_PATH=${CANONICAL_B}" "${STATE_B}" && [ -f "${CANONICAL_B}" ]; then
+    pass_test 'different HOME values produce the corresponding canonical app-owned path'
   else
-    fail_test 'different HOME values produce the corresponding absolute path'
+    fail_test 'different HOME values produce the corresponding canonical app-owned path'
   fi
 else
+  cat "${TMP_DIR}/install-b.out" >&2
   fail_test 'install.sh succeeds for a second HOME value'
 fi
 
 if run_with_env "${MOCK_HOME_B}" "${STATE_B}" bash "${INSTALLER}" >"${TMP_DIR}/install-b-repeat.out" 2>&1; then
-  if grep -Fxq "SERVER_PATH=${MOCK_HOME_B}/.stremio-server/server-wrapper.js" "${STATE_B}"; then
-    pass_test 'reinstall is idempotent and preserves the correct absolute path'
+  if grep -Fxq "SERVER_PATH=${CANONICAL_B}" "${STATE_B}"; then
+    pass_test 'reinstall is idempotent and preserves the canonical path'
   else
-    fail_test 'reinstall is idempotent and preserves the correct absolute path'
+    fail_test 'reinstall is idempotent and preserves the canonical path'
   fi
 else
   fail_test 'reinstall is idempotent'
 fi
 
 printf '%s\n' '================================================================================'
-printf '%s\n' " ABSOLUTE SERVER_PATH TESTS: ${pass_count} passed, ${fail_count} failed"
+printf '%s\n' " CANONICAL FLATPAK PATH TESTS: ${pass_count} passed, ${fail_count} failed"
 printf '%s\n' '================================================================================'
 [ "${fail_count}" -eq 0 ]

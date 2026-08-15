@@ -1,10 +1,11 @@
-# Operational Runbook — Stremio Mute v1.2.3
+# Operational Runbook — Stremio Mute v1.2.4
 
 **Audience:** System administrators, desktop Linux users, and power users
 **System target:** Linux Flatpak Stremio `com.stremio.Stremio`
 **Compatibility model:** Version-sensitive and fail-closed
 
-This runbook is the operational source of truth for the published v1.2.3 documentation. The controller version and the independently verified Stremio engine version are separate; see [COMPATIBILITY.md](../../COMPATIBILITY.md).
+This runbook is the operational source of truth for the v1.2.4 documentation.
+ The controller version and the independently verified Stremio engine version are separate; see [COMPATIBILITY.md](../../COMPATIBILITY.md).
 
 ---
 
@@ -15,7 +16,7 @@ This runbook is the operational source of truth for the published v1.2.3 documen
 ```bash
 git clone https://github.com/LoneVertex/stremio-mute.git
 cd stremio-mute
-git checkout v1.2.3
+git checkout v1.2.4
 ```
 
 ### 1.2 Confirm prerequisites
@@ -35,7 +36,7 @@ The installer requires Flatpak and an installed `com.stremio.Stremio` applicatio
 ./scripts/verify.sh
 ```
 
-The installer performs compatibility pre-flight before staging the wrapper or changing the Flatpak override. It stops any running Stremio process to prevent stale in-memory controller metadata, stages the wrapper at `$HOME/.stremio-server/server-wrapper.js`, computes the current user’s absolute path, persists that path through `flatpak override --user`, verifies the stored value, and runs the verifier.
+The installer performs compatibility pre-flight before staging the wrapper or changing the Flatpak override. It stops any running Stremio process to prevent stale in-memory controller metadata, stages the wrapper at `$HOME/.var/app/com.stremio.Stremio/.stremio-server/server-wrapper.js`, removes the legacy host wrapper at `$HOME/.stremio-server/server-wrapper.js`, computes the current user’s canonical absolute app-owned path, proves sandbox visibility, persists that path through `flatpak override --user`, verifies the stored value, and runs the verifier.
 
 When Stremio is stopped, the expected state is:
 
@@ -49,13 +50,13 @@ STATUS: CONFIGURED
 
 ## 2. Absolute `SERVER_PATH` Rule
 
-Use `$HOME/.stremio-server/server-wrapper.js` in shell commands as shorthand for the current user’s home directory. The persisted Flatpak environment value must be the expanded absolute path. For example:
+Use `$HOME/.var/app/com.stremio.Stremio/.stremio-server/server-wrapper.js` in shell commands as shorthand only. The persisted Flatpak environment value must be the expanded absolute app-owned path. For example:
 
 ```text
-SERVER_PATH=/home/current-user/.stremio-server/server-wrapper.js
+SERVER_PATH=/home/current-user/.var/app/com.stremio.Stremio/.stremio-server/server-wrapper.js
 ```
 
-This is not a valid persisted value:
+The former host-only `$HOME/.stremio-server/server-wrapper.js` location is legacy. This is **OLD / INVALID / HISTORICAL** and must not be configured:
 
 ```text
 SERVER_PATH=~/.stremio-server/server-wrapper.js
@@ -67,7 +68,7 @@ The Flatpak environment and Stremio’s Node.js process do not expand a literal 
 flatpak override --user --show com.stremio.Stremio
 ```
 
-The `SERVER_PATH` shown there must exactly match the current user’s absolute `$HOME/.stremio-server/server-wrapper.js` path.
+The `SERVER_PATH` shown there must exactly match the current user’s absolute app-owned `$HOME/.var/app/com.stremio.Stremio/.stremio-server/server-wrapper.js` path, and the verifier must prove that the wrapper is readable inside the sandbox.
 
 ---
 
@@ -91,7 +92,7 @@ The expected protected running state is:
 STATUS: RUNTIME VERIFIED
 ```
 
-This state requires Stremio to be running, the controller endpoint and heartbeat to respond, the controller to be active, the endpoint version to match the repository `VERSION`, the endpoint `sourceSha256` to match the installed wrapper bytes, and the upload-suppression invariants to be present. The status endpoint exposes `version`, `sourceSha256`, `active`, `muted`, `uploads`, `rechokeSlots`, and `wireRequestBlocked`. If Stremio is stopped, `CONFIGURED` is correct. Do not treat `ERROR`, `NOT PROTECTED`, stale metadata, or missing telemetry as proof of zero peer-piece upload.
+This state requires Stremio to be running, the canonical app-owned path to be sandbox-visible, no legacy wrapper to compete, the controller endpoint and heartbeat to respond, the controller to be active, the endpoint version to match the repository `VERSION`, the endpoint `sourceSha256` to match the canonical installed wrapper bytes, and the upload-suppression invariants to be present. The status endpoint exposes `project`, `version`, `sourceSha256`, `active`, `muted`, `policy`, and nested invariant fields for `uploads`, `rechokeSlots`, and `wireRequestBlocked`. If Stremio is stopped, `CONFIGURED` is correct. Do not treat `ERROR`, `NOT PROTECTED`, stale metadata, or missing telemetry as proof of zero peer-piece upload.
 
 ### 3.1 Restarting Stremio
 
@@ -189,7 +190,7 @@ cd ~/stremio-mute
 ./scripts/verify.sh
 ```
 
-A successful removal should result in `STATUS: NOT INSTALLED`. Rollback removes the project’s Flatpak user override, the canonical `$HOME/.stremio-server/server-wrapper.js` wrapper, and any legacy sandbox-local wrapper path. It does not remove unrelated Stremio libraries, addons, or user settings. Rollback is safe to repeat.
+A successful removal should result in `STATUS: NOT INSTALLED`. Rollback removes the project’s Flatpak user override, the canonical app-owned `$HOME/.var/app/com.stremio.Stremio/.stremio-server/server-wrapper.js` wrapper, and the legacy host `$HOME/.stremio-server/server-wrapper.js` wrapper. It does not remove unrelated Stremio libraries, addons, or user settings. Rollback is safe to repeat.
 
 ---
 
@@ -199,12 +200,12 @@ After rollback, reinstall from the published checkout:
 
 ```bash
 cd ~/stremio-mute
-git checkout v1.2.3
+git checkout v1.2.4
 ./scripts/install.sh
 ./scripts/verify.sh
 ```
 
-The installer recomputes the current user’s absolute `SERVER_PATH`. It does not reuse a stale path, another user’s path, or a literal tilde. Expect `CONFIGURED` while Stremio is stopped and `RUNTIME VERIFIED` after launching Stremio and starting a stream.
+The installer recomputes the current user’s canonical app-owned absolute `SERVER_PATH`, proves its sandbox visibility, and removes the legacy host wrapper. It does not reuse a stale path, another user’s path, or a literal tilde. Expect `CONFIGURED` while Stremio is stopped and `RUNTIME VERIFIED` after launching Stremio and starting a stream.
 
 The lifecycle is:
 

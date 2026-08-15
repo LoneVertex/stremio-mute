@@ -12,7 +12,7 @@ All contributors are expected to adhere to our [Code of Conduct](CODE_OF_CONDUCT
 
 ## Project Invariants & Non-Goals
 
-Contributions must strictly align with the project's mission: **enforcing application-level BitTorrent peer-piece upload suppression on Linux Stremio while preserving normal playback and local IPC**.
+Contributions must strictly align with the project's mission: **enforcing application-level BitTorrent peer-piece upload suppression on Linux Stremio while preserving normal playback and local IPC**. Deployment changes must preserve one canonical, app-owned Flatpak wrapper path and must not add broad filesystem permissions merely to make a host-only path work.
 
 We do **NOT** accept contributions that:
 - Integrate third-party Stremio addons, scrapers, indexers, or content providers.
@@ -43,5 +43,5 @@ We do **NOT** accept contributions that:
    ```bash
    bash scripts/repo-audit.sh
    ```
-4. When reporting runtime behavior, distinguish static tests from live Fedora/KDE/Flatpak evidence; do not claim `RUNTIME VERIFIED` or zero peer-piece upload without corresponding endpoint and environment evidence.
+4. When reporting runtime behavior, distinguish static tests from live Fedora/KDE/Flatpak evidence; include canonical-path visibility and legacy-cleanup evidence where relevant; do not claim `RUNTIME VERIFIED` or zero peer-piece upload without corresponding endpoint and environment evidence.
 5. Submit a Pull Request following the [PR Template](.github/PULL_REQUEST_TEMPLATE.md).

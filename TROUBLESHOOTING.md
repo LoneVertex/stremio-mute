@@ -1,4 +1,4 @@
-# Troubleshooting Guide — Stremio Mute v1.2.3
+# Troubleshooting Guide — Stremio Mute v1.2.4
 
 This guide covers common diagnostic workflows, verifier states, update failures, and lifecycle problems.
 
@@ -27,7 +27,7 @@ Inspect the persisted Flatpak override with:
 flatpak override --user --show com.stremio.Stremio
 ```
 
-The `SERVER_PATH` value must be an absolute path such as `/home/current-user/.stremio-server/server-wrapper.js`. The literal `SERVER_PATH=~/.stremio-server/server-wrapper.js` is invalid and must not be written manually.
+The `SERVER_PATH` value must be the canonical absolute app-owned path such as `/home/current-user/.var/app/com.stremio.Stremio/.stremio-server/server-wrapper.js`. The former host-only `$HOME/.stremio-server/server-wrapper.js` path is legacy. The literal `SERVER_PATH=~/.stremio-server/server-wrapper.js` is **OLD / INVALID / HISTORICAL** and must not be written manually.
 
 ---
 
@@ -35,7 +35,7 @@ The `SERVER_PATH` value must be an absolute path such as `/home/current-user/.st
 
 ### `STATUS: CONFIGURED`
 
-Static configuration is valid, the exact absolute `SERVER_PATH` is stored, the wrapper matches the repository source, and the structural fingerprints match. Stremio is currently idle.
+Static configuration is valid: the canonical app-owned absolute `SERVER_PATH` is stored, the wrapper matches the repository source, the canonical path is readable inside the sandbox, project-managed legacy copies are absent, and the structural fingerprints match. Stremio is currently idle.
 
 **Action:** Launch Stremio, start a stream, and run `./scripts/verify.sh` again.
 
@@ -63,7 +63,7 @@ The installed Stremio `server.js` no longer matches one or more exact structural
 
 ### `STATUS: NOT INSTALLED`
 
-The wrapper or exact absolute `SERVER_PATH` configuration is missing or incorrect. This includes a literal tilde, a stale path, another user’s path, or a path from another project.
+The canonical app-owned wrapper, exact absolute `SERVER_PATH`, or sandbox visibility proof is missing or incorrect. This includes a literal tilde, the old host-only path, a stale path, another user’s path, or a path from another project.
 
 **Action:** Run `./scripts/install.sh` and verify again.
 
@@ -85,7 +85,7 @@ Use this sequence when the Stremio application opens but reports that its stream
    flatpak override --user --show com.stremio.Stremio
    ```
 
-   Confirm that `SERVER_PATH` is an absolute path to the current user’s wrapper, such as `/home/current-user/.stremio-server/server-wrapper.js`.
+   Confirm that `SERVER_PATH` is the canonical absolute app-owned path to the current user’s wrapper, such as `/home/current-user/.var/app/com.stremio.Stremio/.stremio-server/server-wrapper.js`.
 
 2. Reject the historical broken form. Do not configure:
 
@@ -126,7 +126,7 @@ The endpoint response is implementation evidence only; missing, malformed, versi
 
 ## 4. Literal Tilde or Incorrect `SERVER_PATH`
 
-**Cause:** An old installation or manual override stored `SERVER_PATH=~/.stremio-server/server-wrapper.js`, pointed to another absolute location, or retained a stale path after a user or checkout change.
+**Cause:** An old installation or manual override stored the **OLD / INVALID / HISTORICAL** tilde form, persisted the legacy host-only `$HOME/.stremio-server/server-wrapper.js` path, pointed to another absolute location, or retained a stale path after a user or checkout change.
 
 **Diagnosis:**
 
@@ -138,12 +138,12 @@ flatpak override --user --show com.stremio.Stremio
 
 ```bash
 cd ~/stremio-mute
-git checkout v1.2.3
+git checkout v1.2.4
 ./scripts/install.sh
 ./scripts/verify.sh
 ```
 
-The installer computes the absolute path dynamically. Do not manually write a tilde value.
+The installer computes and persists the canonical app-owned absolute path dynamically, removes the legacy host wrapper, and proves sandbox visibility. Do not manually write a tilde value or restore the old host-only path.
 
 ---
 
@@ -191,7 +191,7 @@ cd ~/stremio-mute
 ./scripts/verify.sh
 ```
 
-The expected post-rollback state is `NOT INSTALLED`. Rollback removes the project’s override, canonical wrapper, and legacy wrapper path without removing unrelated Stremio user data.
+The expected post-rollback state is `NOT INSTALLED`. Rollback removes the project’s override, canonical app-owned wrapper, and legacy host wrapper without removing unrelated Stremio user data.
 
 Reinstall and verify again:
 
@@ -200,7 +200,7 @@ Reinstall and verify again:
 ./scripts/verify.sh
 ```
 
-Reinstall regenerates the current user’s absolute `SERVER_PATH` and is safe to repeat.
+Reinstall regenerates the current user’s canonical app-owned absolute `SERVER_PATH`, proves sandbox visibility, removes the legacy host wrapper, and is safe to repeat.
 
 ---
 

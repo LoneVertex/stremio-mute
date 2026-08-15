@@ -60,13 +60,19 @@ for _ in $(seq 1 30); do
   [ -n "${RUNTIME_ENDPOINT}" ] && break
   sleep 0.1
 done
-if [ -n "${RUNTIME_ENDPOINT}" ] && grep -q '"version":"'"${PROJECT_VERSION}"'"' <<<"${RUNTIME_ENDPOINT}" && grep -q '"sourceSha256":"'"$(sha256sum "${STAGED_WRAPPER}" | awk '{print $1}')"'"' <<<"${RUNTIME_ENDPOINT}"; then
-  pass_test 'live controller endpoint version and source hash match the release and executed wrapper'
+if [ -n "${RUNTIME_ENDPOINT}" ] \
+  && grep -q '"project":"stremio-mute"' <<<"${RUNTIME_ENDPOINT}" \
+  && grep -q '"version":"'"${PROJECT_VERSION}"'"' <<<"${RUNTIME_ENDPOINT}" \
+  && grep -q '"sourceSha256":"'"$(sha256sum "${STAGED_WRAPPER}" | awk '{print $1}')"'"' <<<"${RUNTIME_ENDPOINT}" \
+  && grep -q '"uploads":0' <<<"${RUNTIME_ENDPOINT}" \
+  && grep -q '"rechokeSlots":0' <<<"${RUNTIME_ENDPOINT}" \
+  && grep -q '"wireRequestBlocked":true' <<<"${RUNTIME_ENDPOINT}"; then
+  pass_test 'live controller endpoint identity and upload-suppression invariants match the release and executed wrapper'
 else
-  fail_test 'live controller endpoint version and source hash match the release and executed wrapper'
+  fail_test 'live controller endpoint identity and upload-suppression invariants match the release and executed wrapper'
 fi
 
-INSTALLED_WRAPPER="${HOME}/.stremio-server/server-wrapper.js"
+INSTALLED_WRAPPER="${HOME}/.var/app/com.stremio.Stremio/.stremio-server/server-wrapper.js"
 if [ -f "${INSTALLED_WRAPPER}" ]; then
   INSTALLED_SHA256="$(sha256sum "${INSTALLED_WRAPPER}" | awk '{print $1}')"
   if [ "${INSTALLED_SHA256}" = "${SOURCE_SHA256}" ]; then

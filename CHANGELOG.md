@@ -4,6 +4,20 @@ All notable changes to this project are documented in this file.
 
 ---
 
+## [1.2.4] - 2026-08-15
+
+### Fixed & Hardened
+- **Flatpak-Aware Deployment:** The installer now stages the wrapper in app-owned per-user storage that is visible inside the `com.stremio.Stremio` sandbox instead of the host-only `$HOME/.stremio-server` location.
+- **Canonical Runtime Path:** `install.sh`, `verify.sh`, `diagnose.sh`, and `rollback.sh` share one canonical absolute `SERVER_PATH` definition and prove sandbox visibility before accepting the installation.
+- **Legacy Cleanup:** The installer and rollback remove only the project-managed legacy host wrapper, preventing competing active copies without touching unrelated Stremio data.
+- **Verifier Path Correction:** `verify.sh` no longer misclassifies a working Flatpak-visible deployment as `NOT INSTALLED`; it rejects host-only, stale, incorrect, or invisible paths.
+- **Runtime Identity Validation:** Runtime verification now requires the expected controller version, executing-wrapper `sourceSha256`, canonical path, heartbeat, active controller, and upload-suppression invariants.
+- **Stale-Process Protection:** Installation continues to stop Stremio before deploying wrapper bytes so the next process cannot retain stale in-memory controller state.
+- **Regression Coverage:** Added canonical-path, sandbox-visibility, host-only rejection, legacy-cleanup, lifecycle, runtime-identity, and stale-process coverage.
+- **Documentation Synchronization:** Updated public installation, compatibility, troubleshooting, security, lifecycle, and support documentation for the repaired deployment model.
+
+---
+
 ## [1.2.3] - 2026-08-15
 
 ### Fixed & Hardened

@@ -4,7 +4,7 @@
 
 1. **Review Documentation:** Read [README.md](README.md), [INSTALL.md](INSTALL.md), [COMPATIBILITY.md](COMPATIBILITY.md), and [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
 2. **Check the Installed State:** From the checkout, run `./scripts/verify.sh`.
-3. **Inspect the Persisted Path When Needed:** Run `flatpak override --user --show com.stremio.Stremio`. The `SERVER_PATH` value must be an absolute path to the current user’s wrapper; do not configure a literal tilde value.
+3. **Inspect the Persisted Path When Needed:** Run `flatpak override --user --show com.stremio.Stremio`. The `SERVER_PATH` value must be the canonical absolute app-owned path under `$HOME/.var/app/com.stremio.Stremio/.stremio-server/server-wrapper.js`, and the verifier must prove that it is readable inside the sandbox. Do not configure the legacy host-only path or a literal tilde value.
 4. **Generate Diagnostic Snapshot:** Run `./scripts/diagnose.sh` to generate an issue-safe report.
 5. **Open an Issue:** Submit a report via [GitHub Issues](https://github.com/LoneVertex/stremio-mute/issues):
    - **Bug Report:** For unexpected behavior or errors during installation or verification.

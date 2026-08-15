@@ -44,6 +44,9 @@ jobs:
       - name: Run Stale-Process Deployment Regression
         run: bash tests/static/test_stale_process_install.sh
 
+      - name: Run Install Rollback Reinstall Lifecycle
+        run: bash tests/integration/test_install_rollback.sh
+
       - name: Run Repository Hygiene Auditor
         run: bash scripts/repo-audit.sh
 
@@ -54,5 +57,7 @@ jobs:
           sha256sum -c SHA256SUMS
           tar -tzf stremio-mute-v*.tar.gz | grep -q '^stremio-mute-v[^/]*/README.md$'
           unzip -Z1 stremio-mute-v*.zip | grep -q '^stremio-mute-v[^/]*/README.md$'
+          tar -tzf stremio-mute-v*.tar.gz | grep -q '^stremio-mute-v[^/]*/scripts/runtime-path.sh$'
+          unzip -Z1 stremio-mute-v*.zip | grep -q '^stremio-mute-v[^/]*/scripts/runtime-path.sh$'
           if tar -tzf stremio-mute-v*.tar.gz | grep -E '(^|/)(\.git|.*\.log|.*\.swp|credentials|private_key|secret)' ; then exit 1; fi
           if unzip -Z1 stremio-mute-v*.zip | grep -E '(^|/)(\.git|.*\.log|.*\.swp|credentials|private_key|secret)' ; then exit 1; fi

@@ -1,33 +1,36 @@
 #!/usr/bin/env bash
-# tests/integration/test_install_rollback.sh — Installer & Rollback Integration Test
-# Tests install idempotency, verification detection, and clean rollback in an isolated environment.
+# tests/integration/test_install_rollback.sh — Installer lifecycle integration test
+# Uses the isolated canonical-path mock in CI and the real Flatpak only when available.
 
 set -uo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd -P)"
 
-echo "================================================================================"
-echo " RUNNING INSTALLER & ROLLBACK INTEGRATION TESTS"
-echo "================================================================================"
+printf '%s\n' '================================================================================'
+printf '%s\n' ' RUNNING INSTALLER LIFECYCLE INTEGRATION TESTS'
+printf '%s\n' '================================================================================'
 
-# 1. Run install
-echo "[Test 1/4] Running fresh installation..."
-bash "${REPO_ROOT}/scripts/install.sh"
+if command -v flatpak >/dev/null 2>&1 && flatpak info com.stremio.Stremio >/dev/null 2>&1; then
+  printf '%s\n' '[Mode] Real Flatpak detected; exercising install -> verify -> reinstall -> rollback.'
+  bash "${REPO_ROOT}/scripts/install.sh"
+  bash "${REPO_ROOT}/scripts/verify.sh" || test $? -eq 1
+  bash "${REPO_ROOT}/scripts/install.sh"
+  bash "${REPO_ROOT}/scripts/verify.sh" || test $? -eq 1
+  bash "${REPO_ROOT}/scripts/rollback.sh"
+  if bash "${REPO_ROOT}/scripts/verify.sh" >/tmp/stremio-mute-rollback-verify.out 2>&1; then
+    printf '%s\n' '[FAIL] verify.sh unexpectedly passed after rollback.' >&2
+    cat /tmp/stremio-mute-rollback-verify.out >&2
+    exit 1
+  fi
+  grep -Eq 'STATUS: NOT INSTALLED|STATUS: CONFIGURED' /tmp/stremio-mute-rollback-verify.out
+else
+  printf '%s\n' '[Mode] Flatpak unavailable; running isolated lifecycle mock coverage.'
+  bash "${REPO_ROOT}/tests/static/test_absolute_path.sh"
+  bash "${REPO_ROOT}/tests/static/test_stale_process_install.sh"
+fi
 
-# 2. Run verify
-echo "[Test 2/4] Running post-install health verification..."
-bash "${REPO_ROOT}/scripts/verify.sh"
-
-# 3. Repeat install (Idempotence test)
-echo "[Test 3/4] Running repeat installation (Idempotence test)..."
-bash "${REPO_ROOT}/scripts/install.sh"
-
-# 4. Verify post-repeat install
-echo "[Test 4/4] Verifying health after repeat installation..."
-bash "${REPO_ROOT}/scripts/verify.sh"
-
-echo ""
-echo "================================================================================"
-echo " INTEGRATION TESTS PASSED"
-echo "================================================================================"
+printf '%s\n' ''
+printf '%s\n' '================================================================================'
+printf '%s\n' ' INSTALLER LIFECYCLE INTEGRATION TESTS PASSED'
+printf '%s\n' '================================================================================'

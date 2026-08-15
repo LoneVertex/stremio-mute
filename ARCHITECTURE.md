@@ -49,19 +49,19 @@ During initial investigation, several system and network-level mechanisms were e
 
 ---
 
-## 3. The v1.2.3 In-Memory Controller Architecture
+## 3. The v1.2.4 In-Memory Controller Architecture
 
 The **Stremio Mute** controller enforces policy at the application layer by modifying engine state directly in Node.js process memory. The launch path is:
 
 ```text
 Stremio Flatpak
-    → Flatpak user override with absolute SERVER_PATH
-    → $HOME/.stremio-server/server-wrapper.js
+    → Flatpak user override with canonical absolute SERVER_PATH
+    → $HOME/.var/app/com.stremio.Stremio/.stremio-server/server-wrapper.js
     → in-memory patched /app/libexec/stremio/server.js
     → torrent engine and local player IPC
 ```
 
-The installer may use `$HOME` as shell notation when locating the current user’s home directory, but the persisted Flatpak environment value must be the expanded absolute path. A literal tilde is not expanded by Flatpak or the Node.js process and is therefore invalid. This distinction is mandatory for install, verify, rollback, reboot, and reinstall behavior.
+The installer may use `$HOME` as shell notation when locating the current user’s home directory, but the persisted Flatpak environment value must be the expanded absolute app-owned path. The former `$HOME/.stremio-server/server-wrapper.js` location is a legacy host-only deployment and is removed. A literal tilde is not expanded by Flatpak or the Node.js process and is therefore invalid. The installer and verifier prove that the canonical wrapper is readable inside the sandbox. This distinction is mandatory for install, verify, rollback, reboot, update, and reinstall behavior.
 
 ```text
                                +--------------------------------------------+
@@ -71,7 +71,7 @@ The installer may use `$HOME` as shell notation when locating the current user�
                                                      | (Spawns Node using SERVER_PATH)
                                                      v
                                +--------------------------------------------+
-                               |        src/server-wrapper.js (v1.2.3)      |
+                               |        src/server-wrapper.js (v1.2.4)      |
                                +--------------------------------------------+
                                                      |
                      +-------------------------------+-------------------------------+
@@ -95,7 +95,7 @@ The installer may use `$HOME` as shell notation when locating the current user�
 
 ### The Three Enforced Invariants
 
-The wrapper is loaded only through the exact absolute `SERVER_PATH` configured for the current user. `verify.sh` requires that persisted value to match the canonical `$HOME/.stremio-server/server-wrapper.js` location after expansion; missing, literal-tilde, stale, cross-user, and incorrect paths are rejected.
+The wrapper is loaded only through the exact canonical absolute `SERVER_PATH` configured for the current user. `verify.sh` requires that persisted value to match the app-owned `$HOME/.var/app/com.stremio.Stremio/.stremio-server/server-wrapper.js` location and proves that the path is readable inside the sandbox; missing, literal-tilde, legacy-host, stale, cross-user, and incorrect paths are rejected.
 
 #### Invariant 1: `rechokeSlots = 0` (Local Choking State)
 - **Mechanism:** In the periodic rechoke timer loop:
@@ -148,4 +148,4 @@ When Stremio connects to seeders:
 3. **Fail-Closed Mechanics:** If an upstream update modifies `server.js` code structure, the process terminates immediately (`process.exit(1)`) and outputs diagnostics.
 4. **Loopback Status Telemetry:** Exposes `http://127.0.0.1:11470/zero-upload-controller` exclusively on `127.0.0.1` for health checks.
 5. **Deployment Identity:** Reports the controller release version and wrapper SHA256; installation stops a running Stremio process before deployment so endpoint metadata cannot remain from an older in-memory wrapper.
-6. **Runtime Verification:** `verify.sh` accepts `RUNTIME VERIFIED` only when the active endpoint version matches the repository `VERSION`, its `sourceSha256` matches the installed wrapper, heartbeat is healthy, and the required upload-suppression invariants are present.
+6. **Runtime Verification:** `verify.sh` accepts `RUNTIME VERIFIED` only when the active endpoint version matches the repository `VERSION`, its `sourceSha256` matches the canonical installed wrapper, heartbeat is healthy, the canonical path is sandbox-visible, no legacy wrapper competes, and the required upload-suppression invariants are present.

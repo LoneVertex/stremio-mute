@@ -1,8 +1,8 @@
 # Installation Guide — Stremio Mute
 
-This guide explains how to install, verify, operate, update, roll back, and reinstall Stremio Mute v1.2.3 on a supported Linux Flatpak desktop.
+This guide explains how to install, verify, operate, update, roll back, and reinstall Stremio Mute v1.2.4 on a supported Linux Flatpak desktop.
 
-> **Important:** Use `$HOME` in shell commands when referring to the current user’s home directory. The Flatpak `SERVER_PATH` value itself is stored as an **absolute filesystem path**. The literal `SERVER_PATH=~/.stremio-server/server-wrapper.js` is the historical broken form and must never be configured.
+> **Important:** Use `$HOME` in shell commands when referring to the current user’s home directory. The Flatpak `SERVER_PATH` value itself is stored as an **absolute filesystem path** in app-owned storage. The former host-only `$HOME/.stremio-server/server-wrapper.js` location is legacy; the literal `SERVER_PATH=~/.stremio-server/server-wrapper.js` is **OLD / INVALID / HISTORICAL** and must never be configured.
 
 ---
 
@@ -31,12 +31,12 @@ flatpak install flathub com.stremio.Stremio
 
 ## Automated Installation
 
-### Step 1: Clone the v1.2.3 Checkout
+### Step 1: Clone the v1.2.4 Checkout
 
 ```bash
 git clone https://github.com/LoneVertex/stremio-mute.git
 cd stremio-mute
-git checkout v1.2.3
+git checkout v1.2.4
 ```
 
 If you already have the checkout, update it before reinstalling:
@@ -44,7 +44,7 @@ If you already have the checkout, update it before reinstalling:
 ```bash
 cd ~/stremio-mute
 git fetch --tags origin
-git checkout v1.2.3
+git checkout v1.2.4
 ```
 
 ### Step 2: Run the Installer
@@ -59,18 +59,19 @@ The installer performs the following operations in order:
 2. It runs the in-sandbox compatibility pre-flight against Stremio’s bundled `server.js` before staging files or changing the Flatpak override.
 3. It verifies the wrapper source and, when host Node.js is available, performs a syntax check.
 4. It stops any running `com.stremio.Stremio` process so a previously loaded wrapper cannot continue serving stale in-memory metadata.
-5. It stages the wrapper at `$HOME/.stremio-server/server-wrapper.js` with mode `0644` and verifies that the staged bytes match the repository source.
-6. It computes the current user’s absolute wrapper path and stores that value in the Flatpak user override.
-7. It verifies that `flatpak override --user --show com.stremio.Stremio` contains the exact absolute `SERVER_PATH`.
-8. It runs `./scripts/verify.sh`.
+5. It stages the wrapper at `$HOME/.var/app/com.stremio.Stremio/.stremio-server/server-wrapper.js` with mode `0644` and verifies that the staged bytes match the repository source.
+6. It removes the project-managed legacy host wrapper at `$HOME/.stremio-server/server-wrapper.js` so only one active deployment location remains.
+7. It computes the current user’s canonical absolute app-owned path and stores that value in the Flatpak user override.
+8. It proves that the canonical wrapper is readable inside the Flatpak sandbox.
+9. It verifies that `flatpak override --user --show com.stremio.Stremio` contains the exact canonical absolute `SERVER_PATH` and runs `./scripts/verify.sh`.
 
-The shell expression `$HOME/.stremio-server/server-wrapper.js` is only shorthand for locating the current user’s home directory. For a user whose home is `/home/current-user`, the persisted value must be:
+The shell expression `$HOME/.var/app/com.stremio.Stremio/.stremio-server/server-wrapper.js` is shorthand only. For a user whose home is `/home/current-user`, the persisted value must be:
 
 ```text
-SERVER_PATH=/home/current-user/.stremio-server/server-wrapper.js
+SERVER_PATH=/home/current-user/.var/app/com.stremio.Stremio/.stremio-server/server-wrapper.js
 ```
 
-Do not manually write `SERVER_PATH=~/.stremio-server/server-wrapper.js`. Flatpak and Stremio’s Node process do not expand that literal tilde.
+Do not manually write `SERVER_PATH=~/.stremio-server/server-wrapper.js`. Flatpak and Stremio’s Node process do not expand that literal tilde, and the old host-only location is not the canonical runtime deployment.
 
 ---
 
@@ -82,13 +83,13 @@ Run the verifier at any time:
 ./scripts/verify.sh
 ```
 
-When Stremio is stopped, a correctly installed v1.2.3 checkout should report:
+When Stremio is stopped, a correctly installed v1.2.4 checkout should report:
 
 ```text
 STATUS: CONFIGURED
 ```
 
-`CONFIGURED` confirms the wrapper, exact absolute override, source match, and compatibility checks. It does not claim that the Stremio server is running.
+`CONFIGURED` confirms the canonical app-owned wrapper, exact absolute override, repository byte match, sandbox visibility, legacy cleanup, and compatibility checks. It does not claim that the Stremio server is running.
 
 Launch Stremio normally through the desktop application launcher or the command line:
 
@@ -160,7 +161,7 @@ cd ~/stremio-mute
 ./scripts/verify.sh
 ```
 
-After a successful rollback, the verifier should report `STATUS: NOT INSTALLED`. Rollback removes the project’s Flatpak user override, the canonical `$HOME/.stremio-server/server-wrapper.js` wrapper, and any legacy sandbox-local wrapper left by older releases. It does not remove unrelated Stremio library data, addons, or user settings.
+After a successful rollback, the verifier should report `STATUS: NOT INSTALLED`. Rollback removes the project’s Flatpak user override, the canonical app-owned `$HOME/.var/app/com.stremio.Stremio/.stremio-server/server-wrapper.js` wrapper, and the legacy host `$HOME/.stremio-server/server-wrapper.js` wrapper. It does not remove unrelated Stremio library data, addons, or user settings.
 
 To reinstall after rollback:
 
@@ -169,7 +170,7 @@ To reinstall after rollback:
 ./scripts/verify.sh
 ```
 
-Reinstallation recomputes and persists the current user’s absolute `SERVER_PATH`; it does not reuse a literal tilde value or a path belonging to another user. Expect `CONFIGURED` while Stremio is stopped, followed by `RUNTIME VERIFIED` after launching Stremio and starting a stream.
+Reinstallation recomputes and persists the current user’s canonical app-owned absolute `SERVER_PATH`; it does not reuse a literal tilde value, the old host-only path, or a path belonging to another user. Expect `CONFIGURED` while Stremio is stopped, followed by `RUNTIME VERIFIED` after launching Stremio and starting a stream.
 
 ---
 

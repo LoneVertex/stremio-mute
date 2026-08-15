@@ -5,9 +5,26 @@
 set -uo pipefail
 
 APP_ID="com.stremio.Stremio"
-HOME_DIR=$(cd "${HOME}" && pwd -P)
-CONTROLLER_FILE="${HOME_DIR}/.stremio-server/server-wrapper.js"
-LEGACY_CONTROLLER_FILE="${HOME_DIR}/.var/app/${APP_ID}/.stremio-server/server-wrapper.js"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd -P)"
+SOURCE_WRAPPER="${REPO_ROOT}/src/server-wrapper.js"
+# shellcheck source=runtime-path.sh
+# shellcheck disable=SC1091
+source "${SCRIPT_DIR}/runtime-path.sh"
+PROJECT_VERSION="$(tr -d '\r\n' < "${REPO_ROOT}/VERSION" 2>/dev/null || printf '%s' unknown)"
+
+sanitize_path() {
+  printf '%s' "$1" | sed "s#^${HOME_DIR}#\$HOME#"
+}
+
+sha256_or_absent() {
+  local file="$1"
+  if [ -f "${file}" ]; then
+    sha256sum "${file}" 2>/dev/null | awk '{print $1}' || printf '%s' unavailable
+  else
+    printf '%s' absent
+  fi
+}
 
 printf '%s\n' '================================================================================'
 printf '%s\n' ' STREMIO MUTE — DIAGNOSTIC REPORT'
@@ -28,6 +45,8 @@ FLATPAK_VERSION=$(flatpak --version 2>/dev/null || printf '%s' 'not installed')
 NODE_VERSION=$(node --version 2>/dev/null || printf '%s' 'not installed')
 printf '%s\n' "- Flatpak Version: ${FLATPAK_VERSION}"
 printf '%s\n' "- Node.js Version: ${NODE_VERSION}"
+printf '%s\n' "- Repository Version: ${PROJECT_VERSION}"
+printf '%s\n' "- Controller Source SHA256: $(sha256_or_absent "${SOURCE_WRAPPER}")"
 
 printf '%s\n' ''
 printf '%s\n' '### 2. Flatpak & Stremio Packaging'
@@ -42,35 +61,42 @@ else
 fi
 
 printf '%s\n' ''
-printf '%s\n' '### 3. Controller Configuration & Wrapper Storage'
-if [ -f "${CONTROLLER_FILE}" ] && [ ! -L "${CONTROLLER_FILE}" ]; then
-  printf '%s\n' "- Canonical server-wrapper.js: Present (${CONTROLLER_FILE})"
-  FILE_METADATA=$(stat -c '%s bytes, perm %a' "${CONTROLLER_FILE}" 2>/dev/null || printf '%s' present)
-  printf '%s\n' "- File metadata: ${FILE_METADATA}"
-  if node -c "${CONTROLLER_FILE}" >/dev/null 2>&1; then
-    printf '%s\n' '- Syntax Check: OK'
-  else
-    printf '%s\n' '- Syntax Check: FAILED'
-  fi
+printf '%s\n' '### 3. Canonical Deployment & Legacy Cleanup'
+printf '%s\n' "- Canonical SERVER_PATH: $(sanitize_path "${EXPECTED_SERVER_PATH}")"
+printf '%s\n' "- Canonical wrapper present: $([ -f "${CANONICAL_WRAPPER}" ] && printf yes || printf no)"
+printf '%s\n' "- Canonical wrapper SHA256: $(sha256_or_absent "${CANONICAL_WRAPPER}")"
+printf '%s\n' "- Legacy host wrapper path: $(sanitize_path "${LEGACY_WRAPPER}")"
+printf '%s\n' "- Legacy host wrapper present: $([ -e "${LEGACY_WRAPPER}" ] && printf yes || printf no)"
+printf '%s\n' "- Legacy host wrapper SHA256: $(sha256_or_absent "${LEGACY_WRAPPER}")"
+printf '%s\n' '- Repository and installed bytes match: '
+if [ -f "${SOURCE_WRAPPER}" ] && [ -f "${CANONICAL_WRAPPER}" ] && cmp -s "${SOURCE_WRAPPER}" "${CANONICAL_WRAPPER}"; then
+  printf '%s\n' 'yes'
 else
-  printf '%s\n' "- Canonical server-wrapper.js: NOT PRESENT at ${CONTROLLER_FILE}"
-fi
-if [ -e "${LEGACY_CONTROLLER_FILE}" ]; then
-  printf '%s\n' "- Legacy wrapper path still present: ${LEGACY_CONTROLLER_FILE}"
-else
-  printf '%s\n' '- Legacy wrapper path: absent'
+  printf '%s\n' 'no'
 fi
 
-printf '%s\n' '- Flatpak User Override (CLI):'
+printf '%s\n' '- Flatpak User Override (sanitized):'
 if command -v flatpak >/dev/null 2>&1; then
   OVERRIDE_TEXT=$(flatpak override --user --show "${APP_ID}" 2>/dev/null || true)
   if printf '%s\n' "${OVERRIDE_TEXT}" | grep -E 'SERVER_PATH' >/dev/null 2>&1; then
-    printf '%s\n' "${OVERRIDE_TEXT}" | grep -E 'SERVER_PATH'
+    printf '%s\n' "${OVERRIDE_TEXT}" | sed "s#${HOME_DIR}#\$HOME#g" | grep -E 'SERVER_PATH'
   else
     printf '%s\n' '  (No SERVER_PATH override set)'
   fi
 else
   printf '%s\n' '  (Flatpak unavailable)'
+fi
+
+printf '%s\n' '- Canonical path runtime visibility:'
+if command -v flatpak >/dev/null 2>&1; then
+  VISIBILITY_CHECK=$(flatpak run --command=node --env="STREMIO_MUTE_PROBE_PATH=${EXPECTED_SERVER_PATH}" "${APP_ID}" -e '
+const fs = require("fs");
+try { fs.accessSync(process.env.STREMIO_MUTE_PROBE_PATH, fs.constants.R_OK); console.log("VISIBLE"); }
+catch (err) { console.log("NOT_VISIBLE"); process.exit(1); }
+' 2>/dev/null || printf '%s\n' 'PROBE_ERROR')
+  printf '%s\n' "  ${VISIBILITY_CHECK}"
+else
+  printf '%s\n' '  UNVERIFIED (Flatpak unavailable)'
 fi
 
 printf '%s\n' ''
@@ -97,7 +123,30 @@ else
 fi
 
 printf '%s\n' ''
-printf '%s\n' '### 5. Runtime Telemetry'
+printf '%s\n' '### 5. Process & Port State'
+if command -v flatpak >/dev/null 2>&1; then
+  if flatpak ps --columns=application,pid 2>/dev/null | grep -F "${APP_ID}"; then
+    printf '%s\n' '- Stremio process: RUNNING'
+  else
+    printf '%s\n' '- Stremio process: STOPPED'
+  fi
+else
+  printf '%s\n' '- Stremio process: UNVERIFIED (Flatpak unavailable)'
+fi
+if command -v ss >/dev/null 2>&1; then
+  PORT_OWNER=$(ss -ltnp 'sport = :11470' 2>/dev/null || true)
+  if [ -n "${PORT_OWNER}" ]; then
+    printf '%s\n' '- Port 11470 owner:'
+    printf '%s\n' "${PORT_OWNER}"
+  else
+    printf '%s\n' '- Port 11470 owner: none observed'
+  fi
+else
+  printf '%s\n' '- Port 11470 owner: unavailable (ss not installed)'
+fi
+
+printf '%s\n' ''
+printf '%s\n' '### 6. Runtime Telemetry'
 if command -v curl >/dev/null 2>&1 && curl -fsS --max-time 1 'http://127.0.0.1:11470/heartbeat' >/dev/null 2>&1; then
   printf '%s\n' '- Local Server Port 11470: LISTENING'
   printf '%s\n' '- Controller Status Endpoint:'
@@ -110,5 +159,5 @@ fi
 
 printf '%s\n' ''
 printf '%s\n' '================================================================================'
-printf '%s\n' ' Report complete. This output is sanitized and safe to share on GitHub Issues.'
+printf '%s\n' " Report complete. Paths are normalized to \$HOME and no credentials are included."
 printf '%s\n' '================================================================================'

@@ -56,6 +56,9 @@ jobs:
           bash tests/static/test_syntax.sh
           bash tests/compatibility/test_compatibility_fixtures.sh
           bash tests/static/test_absolute_path.sh
+          bash tests/static/test_controller_version.sh
+          bash tests/static/test_stale_process_install.sh
+          bash tests/integration/test_install_rollback.sh
           bash scripts/repo-audit.sh
 
       - name: Package Release
@@ -67,6 +70,8 @@ jobs:
           sha256sum -c SHA256SUMS
           tar -tzf stremio-mute-v*.tar.gz | grep -q '^stremio-mute-v[^/]*/README.md$'
           unzip -Z1 stremio-mute-v*.zip | grep -q '^stremio-mute-v[^/]*/README.md$'
+          tar -tzf stremio-mute-v*.tar.gz | grep -q '^stremio-mute-v[^/]*/scripts/runtime-path.sh$'
+          unzip -Z1 stremio-mute-v*.zip | grep -q '^stremio-mute-v[^/]*/scripts/runtime-path.sh$'
           if tar -tzf stremio-mute-v*.tar.gz | grep -E '(^|/)(\.git|.*\.log|.*\.swp|credentials|private_key|secret)' ; then exit 1; fi
           if unzip -Z1 stremio-mute-v*.zip | grep -E '(^|/)(\.git|.*\.log|.*\.swp|credentials|private_key|secret)' ; then exit 1; fi
 

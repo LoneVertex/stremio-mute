@@ -36,7 +36,9 @@ case "${1:-}" in
     exit 0
     ;;
   run)
-    if printf '%s\n' "$*" | grep -Fq 'MATCH_EXACT_ONE'; then
+    if printf '%s\n' "$*" | grep -Fq -- 'STREMIO_MUTE_PROBE_PATH='; then
+      printf '%s\n' 'VISIBLE'
+    elif printf '%s\n' "$*" | grep -Fq 'MATCH_EXACT_ONE'; then
       printf '%s\n' 'MATCH_EXACT_ONE'
     else
       printf '%s\n' 'COMPAT_OK'

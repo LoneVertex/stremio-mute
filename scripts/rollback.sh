@@ -1,20 +1,28 @@
 #!/usr/bin/env bash
 # scripts/rollback.sh — Stremio Mute Rollback & Uninstaller
-# Removes the exact SERVER_PATH override and staged wrapper files idempotently.
+# Removes the exact SERVER_PATH override and project-managed wrapper files idempotently.
 
 set -euo pipefail
 
 APP_ID="com.stremio.Stremio"
-HOME_DIR="$(cd "${HOME}" && pwd -P)"
-CANONICAL_WRAPPER="${HOME_DIR}/.stremio-server/server-wrapper.js"
-LEGACY_WRAPPER="${HOME_DIR}/.var/app/${APP_ID}/.stremio-server/server-wrapper.js"
-OVERRIDE_FILE="${HOME_DIR}/.local/share/flatpak/overrides/${APP_ID}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+# shellcheck source=runtime-path.sh
+# shellcheck disable=SC1091
+source "${SCRIPT_DIR}/runtime-path.sh"
 
 printf '%s\n' '================================================================================'
 printf '%s\n' ' STREMIO MUTE — ROLLBACK'
 printf '%s\n' '================================================================================'
 
-printf '%s\n' "[1/3] Removing SERVER_PATH override for ${APP_ID}..."
+printf '%s\n' "[1/3] Stopping any running ${APP_ID} process..."
+if command -v flatpak >/dev/null 2>&1 && flatpak ps --columns=application 2>/dev/null | grep -Fxq "${APP_ID}"; then
+  flatpak kill "${APP_ID}"
+  printf '%s\n' '  [PASS] Running Stremio process stopped.'
+else
+  printf '%s\n' '  [INFO] No running Stremio process detected or Flatpak CLI unavailable.'
+fi
+
+printf '%s\n' "[2/3] Removing SERVER_PATH override for ${APP_ID}..."
 if command -v flatpak >/dev/null 2>&1; then
   if flatpak override --user --unset-env=SERVER_PATH "${APP_ID}" >/dev/null 2>&1; then
     printf '%s\n' '  [PASS] SERVER_PATH override unset via Flatpak CLI.'
@@ -22,7 +30,7 @@ if command -v flatpak >/dev/null 2>&1; then
     printf '%s\n' '  [INFO] No active Flatpak CLI override found or already cleared.'
   fi
 else
-  printf '%s\n' "  [INFO] Flatpak CLI unavailable; checking local override file only."
+  printf '%s\n' '  [INFO] Flatpak CLI unavailable; checking local override file only.'
 fi
 
 if [ -f "${OVERRIDE_FILE}" ] && grep -q '^SERVER_PATH=' "${OVERRIDE_FILE}" 2>/dev/null; then
@@ -30,7 +38,7 @@ if [ -f "${OVERRIDE_FILE}" ] && grep -q '^SERVER_PATH=' "${OVERRIDE_FILE}" 2>/de
   printf '%s\n' '  [PASS] Removed SERVER_PATH from the user override file.'
 fi
 
-printf '%s\n' '[2/3] Removing staged wrapper files...'
+printf '%s\n' '[3/3] Removing project-managed wrapper files and verifying clean rollback...'
 for wrapper in "${CANONICAL_WRAPPER}" "${LEGACY_WRAPPER}"; do
   if [ -L "${wrapper}" ]; then
     rm -f "${wrapper}"
@@ -43,7 +51,6 @@ for wrapper in "${CANONICAL_WRAPPER}" "${LEGACY_WRAPPER}"; do
   fi
 done
 
-printf '%s\n' '[3/3] Verifying clean rollback state...'
 ERRORS=0
 if command -v flatpak >/dev/null 2>&1; then
   OVERRIDE_SHOW=$(flatpak override --user --show "${APP_ID}" 2>/dev/null || true)
@@ -61,11 +68,11 @@ else
   printf '%s\n' '  [PASS] Local override file has no SERVER_PATH entry.'
 fi
 for wrapper in "${CANONICAL_WRAPPER}" "${LEGACY_WRAPPER}"; do
-  if [ -e "${wrapper}" ]; then
-    printf '%s\n' "  [FAIL] Wrapper remains at: ${wrapper}" >&2
+  if [ -e "${wrapper}" ] || [ -L "${wrapper}" ]; then
+    printf '%s\n' "  [FAIL] Project-managed wrapper remains at: ${wrapper}" >&2
     ERRORS=$((ERRORS+1))
   else
-    printf '%s\n' "  [PASS] Wrapper absent: ${wrapper}"
+    printf '%s\n' "  [PASS] Project-managed wrapper absent: ${wrapper}"
   fi
 done
 

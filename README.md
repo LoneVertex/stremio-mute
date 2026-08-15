@@ -14,12 +14,12 @@
 
 ## Quickstart
 
-Use the published v1.2.3 checkout for a reproducible installation:
+Use the published v1.2.4 checkout for a reproducible installation:
 
 ```bash
 git clone https://github.com/LoneVertex/stremio-mute.git
 cd stremio-mute
-git checkout v1.2.3
+git checkout v1.2.4
 ./scripts/install.sh
 ./scripts/verify.sh
 ```
@@ -53,7 +53,7 @@ Stremio’s embedded BitTorrent engine fork defaults to allocating upload slots.
 ## How It Works
 
 1. Flatpak’s `SERVER_PATH` environment variable directs Stremio’s launcher to the staged wrapper instead of stock `server.js`.
-2. The installer stops any running Stremio process, stages the wrapper at `$HOME/.stremio-server/server-wrapper.js`, and stores the **expanded absolute path** in the Flatpak user override. Stopping first ensures the next launch cannot retain an older in-memory controller version. For example, the persisted value may be `/home/current-user/.stremio-server/server-wrapper.js`.
+2. The installer stops any running Stremio process, stages the wrapper in Flatpak app-owned storage at `$HOME/.var/app/com.stremio.Stremio/.stremio-server/server-wrapper.js`, and stores that **expanded absolute path** in the Flatpak user override. Stopping first ensures the next launch cannot retain an older in-memory controller version. For example, the persisted value may be `/home/current-user/.var/app/com.stremio.Stremio/.stremio-server/server-wrapper.js`.
 3. The wrapper inspects `/app/libexec/stremio/server.js` in memory and requires three structural fingerprints to occur exactly once.
 4. It applies three in-memory modifications: `rechokeSlots = 0`, engine defaults `uploads = 0`, and request-handler neutralization before disk-piece reads.
 5. It compiles and executes the patched server in Node.js process memory without modifying vendor files on disk.
@@ -61,17 +61,13 @@ Stremio’s embedded BitTorrent engine fork defaults to allocating upload slots.
 
 ### Absolute `SERVER_PATH` Rule
 
-Use `$HOME/.stremio-server/server-wrapper.js` in shell commands when referring to the current user’s home directory. The Flatpak environment value itself is stored as an absolute path and must not contain a literal tilde. This is correct:
+The canonical wrapper is stored in Flatpak app-owned storage. Use `$HOME/.var/app/com.stremio.Stremio/.stremio-server/server-wrapper.js` in shell commands as shorthand only; the Flatpak environment value itself must be an absolute path. This is the current form:
 
 ```text
-SERVER_PATH=/home/current-user/.stremio-server/server-wrapper.js
+SERVER_PATH=/home/current-user/.var/app/com.stremio.Stremio/.stremio-server/server-wrapper.js
 ```
 
-This is the historical invalid form and must not be configured:
-
-```text
-SERVER_PATH=~/.stremio-server/server-wrapper.js
-```
+The former host-only `$HOME/.stremio-server/server-wrapper.js` location is **LEGACY** for v1.2.4 and is removed by the installer. The literal `SERVER_PATH=~/.stremio-server/server-wrapper.js` is **OLD / INVALID / HISTORICAL** and must never be configured because the relevant Flatpak runtime does not expand the tilde.
 
 ---
 
@@ -86,7 +82,7 @@ This project is a local engine-policy enforcement tool. It is not a content prov
 | Layer | Environment | Status | Details |
 |---|---|---|---|
 | **Packaging** | Linux Flatpak (`com.stremio.Stremio`) | **SUPPORTED** | Standard Flathub distribution mechanism |
-| **Controller** | Stremio Mute v1.2.3 | **CURRENT** | Fail-closed wrapper with exact-one structural fingerprints |
+| **Controller** | Stremio Mute v1.2.4 | **CURRENT** | Flatpak app-owned canonical path, sandbox visibility proof, fail-closed wrapper with exact-one structural fingerprints |
 | **Verified environment** | Fedora 44 + KDE Plasma 6 + Linux 7.1 | **VERIFIED** | Stremio v1.2.0 / EngineFS v4.21.0; this is the verified target evidence, not the controller version |
 | **Other distributions** | Arch Linux, Ubuntu, Debian, openSUSE | **UNVERIFIED** | Expected to work through Flatpak but not independently tested by this project |
 | **Native packages** | `.deb`, `.rpm`, AUR, AppImage | **OUT OF SCOPE** | The implementation is designed for the Flatpak user override |
@@ -103,7 +99,7 @@ Run:
 ./scripts/verify.sh
 ```
 
-- **`CONFIGURED`** means the static wrapper, exact absolute override, source match, and compatibility checks are valid while Stremio is idle.
+- **`CONFIGURED`** means the canonical Flatpak-visible wrapper, exact absolute override, source match, visibility proof, legacy cleanup, and compatibility checks are valid while Stremio is idle.
 - **`RUNTIME VERIFIED`** means Stremio is running and the controller endpoint and heartbeat confirm protected execution, while the endpoint version matches `VERSION` and its source SHA256 matches the installed wrapper.
 - **`NOT PROTECTED`** means Stremio is running without complete controller evidence.
 - **`INCOMPATIBLE`** means the bundled engine no longer matches the required structural fingerprints; the wrapper remains fail-closed.
@@ -149,7 +145,7 @@ cd ~/stremio-mute
 ./scripts/verify.sh
 ```
 
-After rollback, `NOT INSTALLED` is expected. The script removes the project’s override, canonical wrapper, and legacy wrapper path without removing unrelated Stremio user data. To reinstall and regenerate the current user’s absolute path:
+After rollback, `NOT INSTALLED` is expected. The script removes the project’s override, canonical app-owned wrapper, and legacy host wrapper without removing unrelated Stremio user data. To reinstall and regenerate the current user’s canonical absolute path:
 
 ```bash
 ./scripts/install.sh
@@ -164,7 +160,7 @@ After rollback, `NOT INSTALLED` is expected. The script removes the project’s 
 Stremio Flatpak
       │
       ▼
-absolute SERVER_PATH
+canonical absolute SERVER_PATH in Flatpak app-owned storage
       │
       ▼
 server-wrapper.js
