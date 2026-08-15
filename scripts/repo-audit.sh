@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # scripts/repo-audit.sh — Stremio Mute Repository Hygiene, Secrets & Artifact Auditor
-# Verifies repository cleanliness, required files, syntax, and absence of private/agent artifacts.
+# Verifies repository cleanliness, required files, syntax, and absence of prohibited workflow artifacts.
 
 set -uo pipefail
 

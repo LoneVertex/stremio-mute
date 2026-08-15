@@ -34,9 +34,12 @@ cd stremio-mute
 2. **Inspect Stremio Flatpak:** Checks `com.stremio.Stremio` is installed.
 3. **Pre-Flight Compatibility Validation:** Runs in-sandbox assertion checking that all 3 fingerprints match `server.js` **before** modifying anything. If a mismatch is detected, installation halts cleanly with code 2.
 4. **Validate Wrapper Syntax:** Performs `node -c` syntax check.
-5. **Stage Wrapper:** Copies `src/server-wrapper.js` to `~/.var/app/com.stremio.Stremio/.stremio-server/server-wrapper.js` (`0644`).
-6. **Apply Flatpak Override:** Sets `SERVER_PATH=~/.stremio-server/server-wrapper.js` via `flatpak override --user`.
-7. **Run Verification:** Executes `./scripts/verify.sh`.
+5. **Stage Wrapper:** Copies `src/server-wrapper.js` to `$HOME/.stremio-server/server-wrapper.js` (`0644`).
+6. **Apply Flatpak Override:** Computes the current user’s absolute wrapper path and stores it with `flatpak override --user`; for example, `/home/current-user/.stremio-server/server-wrapper.js`.
+7. **Verify the Persisted Override:** Confirms `flatpak override --user --show com.stremio.Stremio` contains exactly `SERVER_PATH=/home/current-user/.stremio-server/server-wrapper.js` for the current user.
+8. **Run Verification:** Executes `./scripts/verify.sh`.
+
+The shell expression `$HOME/.stremio-server/server-wrapper.js` is only a convenient way to describe the path. The actual Flatpak environment value is an absolute path computed from the current user’s home directory. Never configure or document `SERVER_PATH=~/.stremio-server/server-wrapper.js` as the persisted value; Flatpak and the Stremio runtime do not expand that literal tilde.
 
 ---
 
@@ -47,10 +50,8 @@ Inspect installation health at any time:
 ./scripts/verify.sh
 ```
 
-- **Before launching Stremio:** The output will display:
-  `STATUS: CONFIGURED (STATIC VALIDATION PASSED)`
-- **After launching Stremio and streaming:** The output will display:
-  `STATUS: RUNTIME VERIFIED (UPLOADS MUTED)`
+- **Before launching Stremio:** The output will display `STATUS: CONFIGURED`.
+- **After launching Stremio and confirming the loopback controller and heartbeat:** The output will display `STATUS: RUNTIME VERIFIED`.
 
 ---
 
@@ -71,4 +72,4 @@ To cleanly remove Stremio Mute and restore default Stremio behavior:
 ```bash
 ./scripts/rollback.sh
 ```
-This unsets the Flatpak user environment override and removes the sandboxed wrapper script. Your library, addons, and user settings are preserved.
+This unsets the Flatpak user environment override and removes the canonical `$HOME/.stremio-server/server-wrapper.js` wrapper. It also removes the legacy sandbox-local wrapper path left by older releases, if present. Your library, addons, and user settings are preserved.

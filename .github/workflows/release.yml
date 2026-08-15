@@ -9,10 +9,31 @@ permissions:
   contents: read
 
 jobs:
+  gate:
+    name: Require Successful CI for Tagged Commit
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - name: Verify CI Success
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          success_count=$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs" \
+            -f head_sha="${GITHUB_SHA}" \
+            -f status=completed \
+            --jq '[.workflow_runs[] | select(.conclusion == "success")] | length')
+          if [ "${success_count}" -lt 1 ]; then
+            echo "No successful CI run exists for ${GITHUB_SHA}; refusing to publish a release."
+            exit 1
+          fi
+          echo "Successful CI run found for ${GITHUB_SHA}."
+
   release:
     name: Build & Publish Release Assets
+    needs: gate
     runs-on: ubuntu-latest
-
     permissions:
       contents: write
 
@@ -25,16 +46,29 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Install ShellCheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+
       - name: Validate Test Suite Before Packaging
         run: |
           chmod +x scripts/*.sh tests/**/*.sh
+          find scripts tests -type f -name '*.sh' -print0 | xargs -0 shellcheck
           bash tests/static/test_syntax.sh
           bash tests/compatibility/test_compatibility_fixtures.sh
+          bash tests/static/test_absolute_path.sh
           bash scripts/repo-audit.sh
 
       - name: Package Release
+        run: bash scripts/package.sh
+
+      - name: Verify Release Archives and Checksums
         run: |
-          bash scripts/package.sh
+          cd dist
+          sha256sum -c SHA256SUMS
+          tar -tzf stremio-mute-v*.tar.gz | grep -q '^stremio-mute-v[^/]*/README.md$'
+          unzip -Z1 stremio-mute-v*.zip | grep -q '^stremio-mute-v[^/]*/README.md$'
+          if tar -tzf stremio-mute-v*.tar.gz | grep -E '(^|/)(\.git|.*\.log|.*\.swp|credentials|private_key|secret)' ; then exit 1; fi
+          if unzip -Z1 stremio-mute-v*.zip | grep -E '(^|/)(\.git|.*\.log|.*\.swp|credentials|private_key|secret)' ; then exit 1; fi
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -43,4 +77,5 @@ jobs:
             dist/*.tar.gz
             dist/*.zip
             dist/SHA256SUMS
+          fail_on_unmatched_files: true
           generate_release_notes: true

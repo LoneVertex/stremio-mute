@@ -47,7 +47,7 @@ Stremio's embedded BitTorrent engine fork (`torrent-stream`) defaults to allocat
 
 ## How It Works
 
-1. Flatpak's native `SERVER_PATH` environment variable directs Stremio's launcher to load `src/server-wrapper.js` in place of stock `server.js`.
+1. Flatpak's native `SERVER_PATH` environment variable directs Stremio's launcher to load the staged wrapper in place of stock `server.js`. The installer stores the current user’s absolute path, such as `/home/current-user/.stremio-server/server-wrapper.js`.
 2. The wrapper dynamically inspects `/app/libexec/stremio/server.js` in memory and verifies three structural code fingerprints.
 3. The wrapper applies three in-memory modifications:
    - **`rechokeSlots = 0`**: Keeps all peer connections permanently choked (`wire.amChoking = true`).
@@ -105,10 +105,16 @@ Inspect operational state at any time:
 ```
 
 ### State Semantics:
-- **`STATUS: CONFIGURED (STATIC VALIDATION PASSED)`**: Static configuration is valid and ready; Stremio is currently idle.
-- **`STATUS: RUNTIME VERIFIED (UPLOADS MUTED)`**: Stremio is active and the authoritative loopback controller endpoint on `127.0.0.1:11470` confirmed active enforcement.
-- **`STATUS: NOT PROTECTED`**: Stremio is running, but the stock unprotected server was detected.
-- **`STATUS: INCOMPATIBLE`**: Structural code fingerprints mismatched.
+- **`STATUS: CONFIGURED`**: Static configuration is valid and Stremio is currently idle.
+- **`STATUS: RUNTIME VERIFIED`**: Stremio is active and both the authoritative loopback controller endpoint and heartbeat confirm protected execution.
+- **`STATUS: NOT PROTECTED`**: Stremio is running without complete controller and heartbeat evidence.
+- **`STATUS: INCOMPATIBLE`**: Structural code fingerprints mismatched; the controller remains fail-closed.
+- **`STATUS: NOT INSTALLED`**: The wrapper or exact absolute `SERVER_PATH` configuration is missing or incorrect.
+- **`STATUS: ERROR`**: The verifier cannot safely determine the state.
+
+### Absolute `SERVER_PATH` Rule
+
+The shell expression `$HOME/.stremio-server/server-wrapper.js` is a shorthand used in documentation. The value persisted by Flatpak must be the dynamically computed absolute path for the current user, for example `/home/current-user/.stremio-server/server-wrapper.js`. Never write or expect `SERVER_PATH=~/.stremio-server/server-wrapper.js`; the literal tilde is not expanded by the Flatpak environment or Stremio’s Node process.
 
 ---
 
@@ -132,7 +138,7 @@ To restore Stremio to standard default configuration:
 ```bash
 ./scripts/rollback.sh
 ```
-This unsets the Flatpak environment override, deletes the sandboxed wrapper script, and actively verifies removal. Your library, addons, and user settings remain untouched.
+This unsets the Flatpak environment override, deletes the canonical `$HOME/.stremio-server/server-wrapper.js` wrapper, removes any legacy sandbox-local wrapper from older releases, and actively verifies removal. Your library, addons, and user settings remain untouched.
 
 ---
 

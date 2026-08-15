@@ -19,13 +19,13 @@ and generating a diagnostic snapshot:
 
 ## 2. Interpreting Status Output
 
-### `STATUS: CONFIGURED (STATIC VALIDATION PASSED)`
-- **Meaning:** Stremio Mute is correctly installed and all structural code fingerprints match your installed Stremio version. Stremio is currently idle.
-- **Action:** Launch Stremio and start playing any video stream. Run `./scripts/verify.sh` again to confirm runtime enforcement.
+### `STATUS: CONFIGURED`
+- **Meaning:** Static configuration is valid, the exact absolute `SERVER_PATH` is stored, and all structural code fingerprints match. Stremio is currently idle.
+- **Action:** Launch Stremio and start playing a stream. Run `./scripts/verify.sh` again to confirm runtime enforcement.
 
-### `STATUS: RUNTIME VERIFIED (UPLOADS MUTED)`
-- **Meaning:** Stremio is running, the streaming engine is active, and the authoritative loopback controller endpoint on `127.0.0.1:11470/zero-upload-controller` confirmed that upload suppression invariants are active.
-- **Action:** No action required. Protection is active.
+### `STATUS: RUNTIME VERIFIED`
+- **Meaning:** Stremio is running, the active loopback controller endpoint on `127.0.0.1:11470/zero-upload-controller` confirms the policy, and the heartbeat is healthy.
+- **Action:** No action is required; runtime protection is active.
 
 ### `STATUS: NOT PROTECTED`
 - **Meaning:** Stremio's streaming server is running on `127.0.0.1:11470`, but the controller status endpoint is not responding, indicating stock unprotected Stremio is executing.
@@ -43,8 +43,12 @@ and generating a diagnostic snapshot:
 - **Fix:** Run `./scripts/diagnose.sh` to capture the fingerprint match counts and submit a [Compatibility Issue](https://github.com/LoneVertex/stremio-mute/issues). To use stock Stremio in the interim, run `./scripts/rollback.sh`.
 
 ### `STATUS: NOT INSTALLED`
-- **Meaning:** The controller wrapper file or Flatpak user override is missing.
-- **Fix:** Run `./scripts/install.sh`.
+- **Meaning:** The controller wrapper or exact absolute `SERVER_PATH` configuration is missing or incorrect. This includes a literal `~` path, a stale path, a path for another user, or a path pointing to another project.
+- **Fix:** Inspect `flatpak override --user --show com.stremio.Stremio`, then run `./scripts/install.sh`.
+
+### `STATUS: ERROR`
+- **Meaning:** The verifier could not safely determine the installation state, for example because a required prerequisite or compatibility check could not be executed.
+- **Fix:** Run `./scripts/diagnose.sh` and resolve the reported prerequisite or runtime issue. Do not interpret this state as zero upload.
 
 ---
 
@@ -53,6 +57,11 @@ and generating a diagnostic snapshot:
 ### Error: `Pre-flight compatibility validation failed` during `install.sh`
 - **Cause:** The installer detected that Stremio's bundled `server.js` does not match the required fingerprints.
 - **Protection:** The installer aborted **before** staging files or applying overrides, keeping your installation safe and unmodified.
+
+### Error: `SERVER_PATH` contains a literal tilde or wrong path
+- **Cause:** The Flatpak override was stored as `SERVER_PATH=~/.stremio-server/server-wrapper.js`, points to another absolute location, or is stale after reinstall.
+- **Diagnosis:** Run `flatpak override --user --show com.stremio.Stremio`. The value must be the current user’s absolute path, such as `/home/current-user/.stremio-server/server-wrapper.js`.
+- **Fix:** Run `./scripts/install.sh`. Do not manually store a literal tilde; the installer computes the absolute path dynamically.
 
 ### Error: Stremio Streaming Server Exits on Launch
 - **Cause:** Fail-closed protection triggered due to code mismatch.

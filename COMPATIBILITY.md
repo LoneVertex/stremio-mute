@@ -1,6 +1,6 @@
 # Compatibility Matrix & Update Model — Stremio Mute
 
-**Controller Version:** `1.2.1`  
+**Controller Version:** `1.2.2`
 **Classification:** `PASS WITH VERSION-SENSITIVITY`  
 
 ---
@@ -19,7 +19,19 @@ To ensure technical precision, we distinguish between **Packaging Compatibility*
 
 ---
 
-## 2. Structural Fingerprint Specification
+## 2. Absolute SERVER_PATH Persistence
+
+The installer stages the wrapper at `$HOME/.stremio-server/server-wrapper.js` and stores the expanded absolute path in the Flatpak user override. For a user whose home directory is `/home/current-user`, the persisted value must be:
+
+```text
+SERVER_PATH=/home/current-user/.stremio-server/server-wrapper.js
+```
+
+The shell expression `$HOME/.stremio-server/server-wrapper.js` is not itself the stored value, and `SERVER_PATH=~/.stremio-server/server-wrapper.js` is invalid because the Flatpak runtime does not expand the literal tilde. The verifier rejects missing, literal-tilde, stale, wrong, and cross-user paths.
+
+---
+
+## 3. Structural Fingerprint Specification
 
 The controller validates three structural fingerprints against `/app/libexec/stremio/server.js`. Each fingerprint MUST occur **exactly 1 time** in the target file:
 
@@ -40,7 +52,7 @@ The controller validates three structural fingerprints against `/app/libexec/str
 
 ---
 
-## 3. Update Lifecycle: The Fail-Closed Guarantee
+## 4. Update Lifecycle: The Fail-Closed Guarantee
 
 When Stremio is updated via `flatpak update com.stremio.Stremio`:
 

@@ -4,12 +4,23 @@ All notable changes to this project are documented in this file.
 
 ---
 
+## [1.2.2] - 2026-08-15
+
+### Fixed & Hardened
+- **Absolute Flatpak SERVER_PATH:** `install.sh` now computes the current user’s canonical wrapper path and stores the resulting absolute value instead of a literal tilde expression.
+- **Exact Verifier Semantics:** `verify.sh` now rejects missing, literal-tilde, stale, cross-user, and incorrect paths while preserving the six-state model and requiring live controller and heartbeat evidence for runtime verification.
+- **Lifecycle Cleanup:** Rollback removes the canonical wrapper and legacy sandbox-local wrapper path, and repeated install, rollback, and reinstall operations are covered by regression tests.
+- **Permanent Regression Coverage:** Added isolated tests for multiple `HOME` values, correct and incorrect overrides, rollback, idempotence, and reinstall behavior.
+- **Documentation Synchronization:** Updated installation, runbook, troubleshooting, compatibility, and README guidance to distinguish `$HOME` expressions from stored absolute values.
+
+---
+
 ## [1.2.1] - 2026-08-15
 
 ### Fixed & Hardened (Release-Blocker Remediation)
 - **Positive Compatibility Fixture:** Fixed `tests/fixtures/server_supported.js` by adding mock runtime environment variables (`isPositiveInteger`, `opts`, `settings`, `uploadPipe`, `engine`) to allow clean in-memory compilation without throwing `ReferenceError`.
 - **ShellCheck Compliance:** Resolved all ShellCheck warnings (SC2034, SC2016, SC2002) across all 9 shell scripts (`install.sh`, `verify.sh`, `diagnose.sh`, `rollback.sh`, `package.sh`, `repo-audit.sh`, `test_syntax.sh`, `test_compatibility_fixtures.sh`, `test_install_rollback.sh`).
-- **Exact Override Value Assertion:** Hardened `scripts/verify.sh` to assert exact matching of `SERVER_PATH=~/.stremio-server/server-wrapper.js` via `flatpak override --user --show` rather than loose prefix matching.
+- **Exact Override Value Assertion:** Hardened `scripts/verify.sh` to compare the stored `SERVER_PATH` value exactly; v1.2.2 corrects the prior release’s erroneous literal-tilde expectation to the required absolute path.
 - **Decoupled Host Node Dependency:** Removed unnecessary host-side `command -v node` requirement from `scripts/install.sh`, relying solely on the sandbox Node.js runtime provided by Stremio Flatpak.
 - **SPDX License Recognition:** Standardized `LICENSE` format for automatic GitHub SPDX `MIT` license detection.
 

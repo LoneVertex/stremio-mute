@@ -1,42 +1,39 @@
 #!/usr/bin/env bash
 # scripts/install.sh — Stremio Mute Installer
-# Hardened Pre-Flight Architecture:
-# 1. Detect prerequisites -> 2. Inspect Stremio -> 3. Validate Compatibility ->
-# 4. Validate Wrapper -> 5. Stage Wrapper -> 6. Apply Override -> 7. Verify.
+# Preflight -> validate -> stage -> apply absolute SERVER_PATH -> verify.
 
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-WRAPPER_SRC="${REPO_ROOT}/src/server-wrapper.js"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd -P)"
 APP_ID="com.stremio.Stremio"
-SANDBOX_DIR="${HOME}/.var/app/${APP_ID}/.stremio-server"
-TARGET_WRAPPER="${SANDBOX_DIR}/server-wrapper.js"
+WRAPPER_SRC="${REPO_ROOT}/src/server-wrapper.js"
+HOME_DIR="$(cd "${HOME}" && pwd -P)"
+WRAPPER_DIR="${HOME_DIR}/.stremio-server"
+TARGET_WRAPPER="${WRAPPER_DIR}/server-wrapper.js"
+EXPECTED_SERVER_PATH="${TARGET_WRAPPER}"
 
-echo "================================================================================"
-echo " STREMIO MUTE — INSTALLER"
-echo " Tagline: Mute BitTorrent peer uploads. Keep streaming."
-echo "================================================================================"
+printf '%s\n' '================================================================================'
+printf '%s\n' ' STREMIO MUTE — INSTALLER'
+printf '%s\n' ' Tagline: Mute BitTorrent peer uploads. Keep streaming.'
+printf '%s\n' '================================================================================'
 
-# 1. Detect Prerequisites
-echo "[1/7] Detecting system prerequisites..."
-if ! command -v flatpak &>/dev/null; then
-  echo "  [ERROR] 'flatpak' command not found. Flatpak is required." >&2
+printf '%s\n' '[1/8] Detecting system prerequisites...'
+if ! command -v flatpak >/dev/null 2>&1; then
+  printf '%s\n' "  [ERROR] 'flatpak' command not found. Flatpak is required." >&2
   exit 1
 fi
-echo "  [PASS] Flatpak CLI detected."
+printf '%s\n' '  [PASS] Flatpak CLI detected.'
 
-# 2. Inspect Stremio Flatpak
-echo "[2/7] Inspecting Flatpak installation for ${APP_ID}..."
-if ! flatpak info "${APP_ID}" &>/dev/null; then
-  echo "  [ERROR] ${APP_ID} is not installed via Flatpak." >&2
-  echo "  Please install it first with: flatpak install flathub ${APP_ID}" >&2
+printf '%s\n' "[2/8] Inspecting Flatpak installation for ${APP_ID}..."
+if ! flatpak info "${APP_ID}" >/dev/null 2>&1; then
+  printf '%s\n' "  [ERROR] ${APP_ID} is not installed via Flatpak." >&2
+  printf '%s\n' "  Install it first with: flatpak install flathub ${APP_ID}" >&2
   exit 1
 fi
-echo "  [PASS] ${APP_ID} Flatpak installation confirmed."
+printf '%s\n' "  [PASS] ${APP_ID} Flatpak installation confirmed."
 
-# 3. Pre-Flight Compatibility Validation (Must validate BEFORE activation)
-echo "[3/7] Running pre-flight compatibility check against Stremio engine..."
+printf '%s\n' '[3/8] Running pre-flight compatibility check against Stremio engine...'
 COMPAT_CHECK=$(flatpak run --command=node "${APP_ID}" -e '
 const fs = require("fs");
 const target = "/app/libexec/stremio/server.js";
@@ -48,52 +45,71 @@ const code = fs.readFileSync(target, "utf8");
 const p1 = (code.split("var rechokeIntervalId, rechokeSlots = !1 === opts.uploads || 0 === opts.uploads ? 0 : +opts.uploads || 5").length - 1) === 1;
 const p2 = (code.split("MIN_PEERS_FOR_STABLE = isPositiveInteger(settings.btMinPeersForStable) ? settings.btMinPeersForStable : 5, defaults = {").length - 1) === 1;
 const p3 = (code.split("uploadPipe.push(engine.store.read, index, (function(err, buffer) {").length - 1) === 1;
-
 if (p1 && p2 && p3) {
   console.log("COMPAT_OK");
   process.exit(0);
-} else {
-  console.log("COMPAT_FAIL: p1=" + p1 + " p2=" + p2 + " p3=" + p3);
-  process.exit(2);
 }
-' 2>/dev/null || echo "COMPAT_ERR")
+console.log("COMPAT_FAIL: p1=" + p1 + " p2=" + p2 + " p3=" + p3);
+process.exit(2);
+' 2>/dev/null || printf '%s\n' 'COMPAT_ERR')
 
-if [ "${COMPAT_CHECK}" != "COMPAT_OK" ]; then
-  echo "  [FATAL] Pre-flight compatibility validation failed: ${COMPAT_CHECK}" >&2
-  echo "  Stremio server.js structural code does not match expected fingerprints." >&2
-  echo "  Installation aborted BEFORE making any changes to prevent disruption." >&2
+if [ "${COMPAT_CHECK}" != 'COMPAT_OK' ]; then
+  printf '%s\n' "  [FATAL] Pre-flight compatibility validation failed: ${COMPAT_CHECK}" >&2
+  printf '%s\n' '  Installation aborted before staging or changing the Flatpak override.' >&2
   exit 2
 fi
-echo "  [PASS] Stremio server.js structural fingerprints verified compatible (exact-1 match)."
+printf '%s\n' '  [PASS] Stremio server.js structural fingerprints verified (exact-one match).'
 
-# 4. Validate Wrapper File Presence
-echo "[4/7] Validating wrapper source file..."
-if [ ! -f "${WRAPPER_SRC}" ]; then
-  echo "  [ERROR] Source wrapper missing at: ${WRAPPER_SRC}" >&2
+printf '%s\n' '[4/8] Validating wrapper source and syntax...'
+if [ ! -f "${WRAPPER_SRC}" ] || [ -L "${WRAPPER_SRC}" ]; then
+  printf '%s\n' "  [ERROR] Source wrapper is missing or unexpectedly symlinked: ${WRAPPER_SRC}" >&2
   exit 1
 fi
-echo "  [PASS] Source wrapper present at: ${WRAPPER_SRC}"
+if command -v node >/dev/null 2>&1; then
+  if ! node -c "${WRAPPER_SRC}" >/dev/null 2>&1; then
+    printf '%s\n' "  [ERROR] Wrapper JavaScript syntax is invalid: ${WRAPPER_SRC}" >&2
+    exit 1
+  fi
+  printf '%s\n' '  [PASS] Wrapper source exists and has valid JavaScript syntax.'
+else
+  printf '%s\n' '  [INFO] Host Node.js is unavailable; wrapper bytes and syntax are covered by the project test suite.'
+fi
 
-# 5. Stage Wrapper into Sandbox Storage
-echo "[5/7] Staging server-wrapper.js into Stremio sandbox storage..."
-mkdir -p "${SANDBOX_DIR}"
+printf '%s\n' "[5/8] Staging wrapper at ${TARGET_WRAPPER}..."
+mkdir -p "${WRAPPER_DIR}"
 install -m 0644 "${WRAPPER_SRC}" "${TARGET_WRAPPER}"
-echo "  [PASS] Staged: ${TARGET_WRAPPER} (mode 0644)"
+if [ "$(stat -c '%a' "${TARGET_WRAPPER}" 2>/dev/null || stat -f '%Lp' "${TARGET_WRAPPER}")" != '644' ]; then
+  printf '%s\n' "  [ERROR] Staged wrapper permissions are not 0644: ${TARGET_WRAPPER}" >&2
+  exit 1
+fi
+if ! cmp -s "${WRAPPER_SRC}" "${TARGET_WRAPPER}"; then
+  printf '%s\n' '  [ERROR] Staged wrapper does not match the repository source.' >&2
+  exit 1
+fi
+printf '%s\n' '  [PASS] Wrapper staged with mode 0644 and matching source bytes.'
 
-# 6. Apply Flatpak User Environment Override
-echo "[6/7] Applying Flatpak user environment override..."
-flatpak override --user --env=SERVER_PATH="~/.stremio-server/server-wrapper.js" "${APP_ID}"
-echo "  [PASS] Override set: SERVER_PATH=~/.stremio-server/server-wrapper.js"
+printf '%s\n' "[6/8] Applying absolute Flatpak user environment override..."
+flatpak override --user --env="SERVER_PATH=${EXPECTED_SERVER_PATH}" "${APP_ID}"
+printf '%s\n' "  [PASS] Requested SERVER_PATH=${EXPECTED_SERVER_PATH}"
 
-# 7. Run Verification Check
-echo "[7/7] Running operational verification check..."
+printf '%s\n' '[7/8] Verifying the persisted Flatpak override...'
+OVERRIDE_SHOW=$(flatpak override --user --show "${APP_ID}" 2>/dev/null || true)
+OVERRIDE_LINE=$(printf '%s\n' "${OVERRIDE_SHOW}" | grep -E '(^|[[:space:]])SERVER_PATH=' | tail -n 1 || true)
+ACTUAL_SERVER_PATH="${OVERRIDE_LINE#*SERVER_PATH=}"
+if [ "${ACTUAL_SERVER_PATH}" != "${EXPECTED_SERVER_PATH}" ]; then
+  printf '%s\n' "  [ERROR] Persisted SERVER_PATH is not the expected absolute path: ${ACTUAL_SERVER_PATH:-<missing>}" >&2
+  exit 1
+fi
+printf '%s\n' "  [PASS] Persisted SERVER_PATH exactly matches ${EXPECTED_SERVER_PATH}"
+
+printf '%s\n' '[8/8] Running operational verification...'
 bash "${SCRIPT_DIR}/verify.sh"
 
-echo "================================================================================"
-echo " INSTALLATION SUCCESSFUL"
-echo "================================================================================"
-echo " Staged:   ${TARGET_WRAPPER}"
-echo " Override: SERVER_PATH=~/.stremio-server/server-wrapper.js"
-echo " Status:   Stremio Mute is ready and will enforce upload policy when Stremio is opened."
-echo " Verify:   Run './scripts/verify.sh' at any time to inspect operational health."
-echo "================================================================================"
+printf '%s\n' '================================================================================'
+printf '%s\n' ' INSTALLATION SUCCESSFUL'
+printf '%s\n' '================================================================================'
+printf '%s\n' " Staged wrapper: ${TARGET_WRAPPER}"
+printf '%s\n' " Stored override: SERVER_PATH=${EXPECTED_SERVER_PATH}"
+printf '%s\n' ' Status: Stremio Mute is ready for runtime verification when Stremio is launched.'
+printf '%s\n' " Verify: ${SCRIPT_DIR}/verify.sh"
+printf '%s\n' '================================================================================'

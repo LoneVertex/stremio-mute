@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   test:
-    name: Lint, Syntax, Fixtures & Security Audit
+    name: Lint, Syntax, Compatibility, Lifecycle & Packaging
     runs-on: ubuntu-latest
 
     steps:
@@ -27,17 +27,26 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y shellcheck
 
       - name: Run ShellCheck
-        run: |
-          find scripts tests -name "*.sh" | xargs shellcheck
+        run: find scripts tests -type f -name '*.sh' -print0 | xargs -0 shellcheck
 
       - name: Run Static Syntax Tests
-        run: |
-          bash tests/static/test_syntax.sh
+        run: bash tests/static/test_syntax.sh
 
       - name: Run Compatibility Fixture Tests
-        run: |
-          bash tests/compatibility/test_compatibility_fixtures.sh
+        run: bash tests/compatibility/test_compatibility_fixtures.sh
+
+      - name: Run Absolute-Path and Lifecycle Regression Tests
+        run: bash tests/static/test_absolute_path.sh
 
       - name: Run Repository Hygiene Auditor
+        run: bash scripts/repo-audit.sh
+
+      - name: Build and Validate Release Archives
         run: |
-          bash scripts/repo-audit.sh
+          bash scripts/package.sh
+          cd dist
+          sha256sum -c SHA256SUMS
+          tar -tzf stremio-mute-v*.tar.gz | grep -q '^stremio-mute-v[^/]*/README.md$'
+          unzip -Z1 stremio-mute-v*.zip | grep -q '^stremio-mute-v[^/]*/README.md$'
+          if tar -tzf stremio-mute-v*.tar.gz | grep -E '(^|/)(\.git|.*\.log|.*\.swp|credentials|private_key|secret)' ; then exit 1; fi
+          if unzip -Z1 stremio-mute-v*.zip | grep -E '(^|/)(\.git|.*\.log|.*\.swp|credentials|private_key|secret)' ; then exit 1; fi
