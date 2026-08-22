@@ -75,7 +75,7 @@ else
 fi
 
 printf '%s\n' "[5/9] Stopping any running ${APP_ID} process before deployment..."
-if flatpak ps --columns=application 2>/dev/null | grep -Fxq "${APP_ID}"; then
+if flatpak ps --columns=application 2>/dev/null | grep -Fx "${APP_ID}" >/dev/null; then
   flatpak kill "${APP_ID}"
   printf '%s\n' '  [PASS] Existing Stremio process stopped so the next launch loads fresh wrapper bytes.'
 else

@@ -9,6 +9,7 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd -P)"
 INSTALLER="${REPO_ROOT}/scripts/install.sh"
 VERIFIER="${REPO_ROOT}/scripts/verify.sh"
 ROLLBACK="${REPO_ROOT}/scripts/rollback.sh"
+DIAGNOSE="${REPO_ROOT}/scripts/diagnose.sh"
 TMP_DIR=$(mktemp -d)
 MOCK_BIN="${TMP_DIR}/bin"
 MOCK_HOME_A="${TMP_DIR}/home-a"
@@ -20,7 +21,27 @@ cat > "${MOCK_BIN}/flatpak" <<'MOCK_FLATPAK'
 #!/usr/bin/env bash
 set -u
 STATE_FILE="${MOCK_STATE:?}"
+APP_DEFAULT_SERVER_PATH='/app/libexec/stremio/server.js'
 mkdir -p "$(dirname "${STATE_FILE}")"
+
+state_value() {
+  local key="$1"
+  if [ -f "${STATE_FILE}" ]; then
+    sed -n "s/^${key}=//p" "${STATE_FILE}" | tail -n 1
+  fi
+}
+
+effective_server_path() {
+  if [ "$(state_value UNSET_SERVER_PATH)" = '1' ]; then
+    return 0
+  fi
+  if [ -n "$(state_value SERVER_PATH)" ]; then
+    state_value SERVER_PATH
+  else
+    printf '%s\n' "${APP_DEFAULT_SERVER_PATH}"
+  fi
+}
+
 case "${1:-}" in
   info)
     exit 0
@@ -33,23 +54,39 @@ case "${1:-}" in
     ;;
   run)
     if printf '%s\n' "$*" | grep -Fq -- 'STREMIO_MUTE_PROBE_PATH='; then
+      if [ "${MOCK_FAIL_STOCK_TARGET:-0}" = '1' ] && printf '%s\n' "$*" | grep -Fq -- 'STREMIO_MUTE_PROBE_PATH=/app/libexec/stremio/server.js'; then
+        exit 1
+      fi
       printf '%s\n' 'VISIBLE'
     elif printf '%s\n' "$*" | grep -Fq 'MATCH_EXACT_ONE'; then
       printf '%s\n' 'MATCH_EXACT_ONE'
-    else
+    elif printf '%s\n' "$*" | grep -Fq 'COMPAT_OK'; then
       printf '%s\n' 'COMPAT_OK'
+    else
+      if [ "${MOCK_EFFECTIVE_MISMATCH:-0}" = '1' ] && printf '%s\n' "$*" | grep -Fq 'process.env.SERVER_PATH'; then
+        printf '%s\n' '/wrong/effective/server.js'
+        exit 0
+      fi
+      SERVER_PATH_VALUE="$(effective_server_path)"
+      if [ -n "${SERVER_PATH_VALUE}" ]; then
+        printf '%s\n' "${SERVER_PATH_VALUE}"
+      fi
+      [ -n "${SERVER_PATH_VALUE}" ]
     fi
-    exit 0
+    exit $?
     ;;
   override)
     for arg in "$@"; do
       case "${arg}" in
         --env=SERVER_PATH=*)
+          if [ "${MOCK_FAIL_STOCK_RESTORE:-0}" = '1' ] && [ "${arg#--env=SERVER_PATH=}" = "${APP_DEFAULT_SERVER_PATH}" ]; then
+            exit 1
+          fi
           printf '%s\n' "${arg#--env=}" > "${STATE_FILE}"
           exit 0
           ;;
         --unset-env=SERVER_PATH)
-          rm -f "${STATE_FILE}"
+          printf '%s\n' 'UNSET_SERVER_PATH=1' > "${STATE_FILE}"
           exit 0
           ;;
       esac
@@ -81,12 +118,26 @@ run_with_env() {
   local home_dir="$1"
   local state_file="$2"
   shift 2
-  HOME="${home_dir}" MOCK_STATE="${state_file}" PATH="${MOCK_BIN}:${PATH}" "$@"
+  HOME="${home_dir}" MOCK_STATE="${state_file}" PATH="${MOCK_BIN}:${PATH}" \
+    MOCK_FAIL_STOCK_TARGET="${MOCK_FAIL_STOCK_TARGET:-0}" \
+    MOCK_FAIL_STOCK_RESTORE="${MOCK_FAIL_STOCK_RESTORE:-0}" \
+    MOCK_EFFECTIVE_MISMATCH="${MOCK_EFFECTIVE_MISMATCH:-0}" "$@"
 }
 
 printf '%s\n' '================================================================================'
 printf '%s\n' ' RUNNING CANONICAL FLATPAK PATH REGRESSION TESTS'
 printf '%s\n' '================================================================================'
+
+if grep -Fq -- '--unset-env=SERVER_PATH' "${ROLLBACK}"; then
+  fail_test 'rollback does not unset the required SERVER_PATH environment variable'
+else
+  pass_test 'rollback does not unset the required SERVER_PATH environment variable'
+fi
+if grep -Fq -- 'STOCK_SERVER_PATH' "${ROLLBACK}"; then
+  pass_test 'rollback restores SERVER_PATH through the shared stock-path constant'
+else
+  fail_test 'rollback restores SERVER_PATH through the shared stock-path constant'
+fi
 
 STATE_A="${TMP_DIR}/state-a"
 LOG_A="${TMP_DIR}/install-a.log"
@@ -154,22 +205,52 @@ fi
 
 mkdir -p "${MOCK_HOME_A}/.stremio-server"
 printf '%s\n' legacy > "${LEGACY_A}"
-rm -f "${STATE_A}"
-if run_with_env "${MOCK_HOME_A}" "${STATE_A}" bash "${ROLLBACK}" >"${TMP_DIR}/rollback.out" 2>&1; then
-  if [ ! -e "${CANONICAL_A}" ] && [ ! -e "${LEGACY_A}" ] && [ ! -f "${STATE_A}" ]; then
-    pass_test 'rollback removes canonical and legacy wrappers and exact override'
+
+printf '%s\n' 'UNSET_SERVER_PATH=1' > "${STATE_A}"
+if run_with_env "${MOCK_HOME_A}" "${STATE_A}" "${MOCK_BIN}/flatpak" run --command=node com.stremio.Stremio -e stock-launch >"${TMP_DIR}/broken-stock-launch.out" 2>&1; then
+  fail_test 'old unset SERVER_PATH state blocks the stock launcher'
+else
+  if ! grep -Fq '/app/libexec/stremio/server.js' "${TMP_DIR}/broken-stock-launch.out"; then
+    pass_test 'old unset SERVER_PATH state blocks the stock launcher'
   else
-    fail_test 'rollback removes canonical and legacy wrappers and exact override'
+    fail_test 'old unset SERVER_PATH state blocks the stock launcher clearly'
+  fi
+fi
+
+if run_with_env "${MOCK_HOME_A}" "${STATE_A}" bash "${ROLLBACK}" >"${TMP_DIR}/rollback.out" 2>&1; then
+  EFFECTIVE_STOCK=$(run_with_env "${MOCK_HOME_A}" "${STATE_A}" "${MOCK_BIN}/flatpak" run --command=node com.stremio.Stremio -e stock-launch)
+  if grep -Fxq 'SERVER_PATH=/app/libexec/stremio/server.js' "${STATE_A}" \
+    && [ ! -e "${CANONICAL_A}" ] \
+    && [ ! -e "${LEGACY_A}" ] \
+    && [ "${EFFECTIVE_STOCK}" = '/app/libexec/stremio/server.js' ]; then
+    pass_test 'rollback restores stock SERVER_PATH, removes wrappers, and permits stock launch'
+  else
+    fail_test 'rollback restores stock SERVER_PATH, removes wrappers, and permits stock launch'
   fi
 else
   cat "${TMP_DIR}/rollback.out" >&2
-  fail_test 'rollback succeeds when state is already absent'
+  fail_test 'rollback restores the stock path from an old unset state'
 fi
 
 if run_with_env "${MOCK_HOME_A}" "${STATE_A}" bash "${ROLLBACK}" >"${TMP_DIR}/rollback-repeat.out" 2>&1; then
-  pass_test 'rollback is idempotent'
+  if grep -Fxq 'SERVER_PATH=/app/libexec/stremio/server.js' "${STATE_A}"; then
+    pass_test 'rollback is idempotent and preserves the stock path'
+  else
+    fail_test 'rollback is idempotent and preserves the stock path'
+  fi
 else
   fail_test 'rollback is idempotent'
+fi
+
+if run_with_env "${MOCK_HOME_A}" "${STATE_A}" bash "${DIAGNOSE}" >"${TMP_DIR}/diagnose-stock.out" 2>&1; then
+  if grep -Fq 'stock Stremio; Mute disabled' "${TMP_DIR}/diagnose-stock.out"; then
+    pass_test 'diagnostics identify the verified stock post-rollback state'
+  else
+    fail_test 'diagnostics identify the verified stock post-rollback state'
+  fi
+else
+  cat "${TMP_DIR}/diagnose-stock.out" >&2
+  fail_test 'diagnostics run after rollback'
 fi
 
 STATE_B="${TMP_DIR}/state-b"
@@ -193,6 +274,51 @@ if run_with_env "${MOCK_HOME_B}" "${STATE_B}" bash "${INSTALLER}" >"${TMP_DIR}/i
   fi
 else
   fail_test 'reinstall is idempotent'
+fi
+
+if MOCK_EFFECTIVE_MISMATCH=1 run_with_env "${MOCK_HOME_B}" "${STATE_B}" bash "${ROLLBACK}" >"${TMP_DIR}/rollback-effective-failure.out" 2>&1; then
+  fail_test 'rollback fails when effective SERVER_PATH differs from the override'
+else
+  if grep -Fxq "SERVER_PATH=${CANONICAL_B}" "${STATE_B}" \
+    && [ -f "${CANONICAL_B}" ]; then
+    pass_test 'rollback preserves the active wrapper on effective-path mismatch'
+  else
+    fail_test 'rollback preserves the active wrapper on effective-path mismatch'
+  fi
+fi
+
+if MOCK_FAIL_STOCK_TARGET=1 run_with_env "${MOCK_HOME_B}" "${STATE_B}" bash "${ROLLBACK}" >"${TMP_DIR}/rollback-target-failure.out" 2>&1; then
+  fail_test 'rollback fails when the stock server target is unavailable'
+else
+  if grep -Fxq "SERVER_PATH=${CANONICAL_B}" "${STATE_B}" \
+    && [ -f "${CANONICAL_B}" ]; then
+    pass_test 'rollback preserves the active wrapper when the stock target is unavailable'
+  else
+    fail_test 'rollback preserves the active wrapper when the stock target is unavailable'
+  fi
+fi
+
+if MOCK_FAIL_STOCK_RESTORE=1 run_with_env "${MOCK_HOME_B}" "${STATE_B}" bash "${ROLLBACK}" >"${TMP_DIR}/rollback-failure.out" 2>&1; then
+  fail_test 'rollback fails when stock-path restoration is unavailable'
+else
+  if grep -Fxq "SERVER_PATH=${CANONICAL_B}" "${STATE_B}" \
+    && [ -f "${CANONICAL_B}" ]; then
+    pass_test 'rollback preserves the active wrapper when stock-path restoration fails'
+  else
+    fail_test 'rollback preserves the active wrapper when stock-path restoration fails'
+  fi
+fi
+
+if run_with_env "${MOCK_HOME_B}" "${STATE_B}" bash "${ROLLBACK}" >"${TMP_DIR}/rollback-b.out" 2>&1; then
+  if grep -Fxq 'SERVER_PATH=/app/libexec/stremio/server.js' "${STATE_B}" \
+    && [ ! -e "${CANONICAL_B}" ]; then
+    pass_test 'rollback cleans the second installation after a failed attempt'
+  else
+    fail_test 'rollback cleans the second installation after a failed attempt'
+  fi
+else
+  cat "${TMP_DIR}/rollback-b.out" >&2
+  fail_test 'rollback cleans the second installation after a failed attempt'
 fi
 
 printf '%s\n' '================================================================================'

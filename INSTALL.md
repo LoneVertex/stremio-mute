@@ -1,6 +1,6 @@
 # Installation Guide — Stremio Mute
 
-This guide explains how to install, verify, operate, update, roll back, and reinstall Stremio Mute v1.2.4 on a supported Linux Flatpak desktop.
+This guide explains how to install, verify, operate, update, roll back, and reinstall Stremio Mute v1.2.5 on a supported Linux Flatpak desktop.
 
 > **Important:** Use `$HOME` in shell commands when referring to the current user’s home directory. The Flatpak `SERVER_PATH` value itself is stored as an **absolute filesystem path** in app-owned storage. The former host-only `$HOME/.stremio-server/server-wrapper.js` location is legacy; the literal `SERVER_PATH=~/.stremio-server/server-wrapper.js` is **OLD / INVALID / HISTORICAL** and must never be configured.
 
@@ -31,12 +31,12 @@ flatpak install flathub com.stremio.Stremio
 
 ## Automated Installation
 
-### Step 1: Clone the v1.2.4 Checkout
+### Step 1: Clone the v1.2.5 Checkout
 
 ```bash
 git clone https://github.com/LoneVertex/stremio-mute.git
 cd stremio-mute
-git checkout v1.2.4
+git checkout v1.2.5
 ```
 
 If you already have the checkout, update it before reinstalling:
@@ -44,7 +44,7 @@ If you already have the checkout, update it before reinstalling:
 ```bash
 cd ~/stremio-mute
 git fetch --tags origin
-git checkout v1.2.4
+git checkout v1.2.5
 ```
 
 ### Step 2: Run the Installer
@@ -83,7 +83,7 @@ Run the verifier at any time:
 ./scripts/verify.sh
 ```
 
-When Stremio is stopped, a correctly installed v1.2.4 checkout should report:
+When Stremio is stopped, a correctly installed v1.2.5 checkout should report:
 
 ```text
 STATUS: CONFIGURED
@@ -161,7 +161,7 @@ cd ~/stremio-mute
 ./scripts/verify.sh
 ```
 
-After a successful rollback, the verifier should report `STATUS: NOT INSTALLED`. Rollback removes the project’s Flatpak user override, the canonical app-owned `$HOME/.var/app/com.stremio.Stremio/.stremio-server/server-wrapper.js` wrapper, and the legacy host `$HOME/.stremio-server/server-wrapper.js` wrapper. It does not remove unrelated Stremio library data, addons, or user settings.
+After a successful rollback, the verifier should report `STATUS: NOT INSTALLED`. Rollback restores the stock `SERVER_PATH=/app/libexec/stremio/server.js` inside the Flatpak, then removes the project’s canonical app-owned `$HOME/.var/app/com.stremio.Stremio/.stremio-server/server-wrapper.js` wrapper and legacy host `$HOME/.stremio-server/server-wrapper.js` wrapper. It does not remove unrelated Stremio library data, addons, or user settings. The rollback verifies the stock path before deleting the Mute wrapper; if that verification fails, it stops and preserves the existing deployment.
 
 To reinstall after rollback:
 

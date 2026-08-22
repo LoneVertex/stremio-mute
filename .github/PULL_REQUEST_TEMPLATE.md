@@ -18,6 +18,7 @@ Explain the technical mechanism of the change:
 - [ ] Removes or safely neutralizes only project-managed legacy wrapper copies
 
 ## Compatibility & Verification Evidence
+- [ ] ShellCheck passed for every `scripts/*.sh` and `tests/**/*.sh` file
 - [ ] `bash tests/static/test_syntax.sh` passed
 - [ ] `bash tests/compatibility/test_compatibility_fixtures.sh` passed
 - [ ] `bash tests/integration/test_install_rollback.sh` passed
@@ -25,6 +26,10 @@ Explain the technical mechanism of the change:
 - [ ] `bash tests/static/test_controller_version.sh` passed
 - [ ] `bash tests/static/test_stale_process_install.sh` passed
 - [ ] `bash scripts/repo-audit.sh` passed
+- [ ] CI/release workflow YAML, permissions, triggers, and action commit pinning were reviewed
+- [ ] Release archives were generated, extracted/inspected, and checksums verified
+- [ ] Archive builds are reproducible, or non-reproducibility is documented
+- [ ] Critical safety tests were mutation-tested in an isolated copy when applicable
 - [ ] Runtime endpoint `version` matches repository `VERSION` and `sourceSha256` matches the canonical installed wrapper
 - [ ] Canonical `SERVER_PATH` is readable inside the Flatpak sandbox and the old host-only path is rejected
 - [ ] Live streaming test verified, or explicitly marked unverified when no suitable Flatpak desktop environment is available

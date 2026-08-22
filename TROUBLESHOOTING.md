@@ -1,4 +1,4 @@
-# Troubleshooting Guide — Stremio Mute v1.2.4
+# Troubleshooting Guide — Stremio Mute v1.2.5
 
 This guide covers common diagnostic workflows, verifier states, update failures, and lifecycle problems.
 
@@ -27,7 +27,7 @@ Inspect the persisted Flatpak override with:
 flatpak override --user --show com.stremio.Stremio
 ```
 
-The `SERVER_PATH` value must be the canonical absolute app-owned path such as `/home/current-user/.var/app/com.stremio.Stremio/.stremio-server/server-wrapper.js`. The former host-only `$HOME/.stremio-server/server-wrapper.js` path is legacy. The literal `SERVER_PATH=~/.stremio-server/server-wrapper.js` is **OLD / INVALID / HISTORICAL** and must not be written manually.
+When Stremio Mute is installed, the `SERVER_PATH` value must be the canonical absolute app-owned path such as `/home/current-user/.var/app/com.stremio.Stremio/.stremio-server/server-wrapper.js`. After rollback, the required stock value is `/app/libexec/stremio/server.js`. The former host-only `$HOME/.stremio-server/server-wrapper.js` path is legacy. The literal `SERVER_PATH=~/.stremio-server/server-wrapper.js` is **OLD / INVALID / HISTORICAL** and must not be written manually.
 
 ---
 
@@ -65,7 +65,24 @@ The installed Stremio `server.js` no longer matches one or more exact structural
 
 The canonical app-owned wrapper, exact absolute `SERVER_PATH`, or sandbox visibility proof is missing or incorrect. This includes a literal tilde, the old host-only path, a stale path, another user’s path, or a path from another project.
 
-**Action:** Run `./scripts/install.sh` and verify again.
+**Action:** Run `./scripts/install.sh` and verify again. After rollback, `STATUS: NOT INSTALLED` is expected, but the effective stock `SERVER_PATH` must still be present and Stremio must remain launchable.
+
+### Stock Stremio after rollback
+
+A clean rollback reports `STATUS: NOT INSTALLED` for Mute, but stock Stremio must still receive `SERVER_PATH=/app/libexec/stremio/server.js`. Check the effective value inside the sandbox:
+
+```bash
+flatpak run --command=node com.stremio.Stremio -e 'process.stdout.write(process.env.SERVER_PATH || "")'
+```
+
+If the command prints nothing or Stremio reports `Failed to read SERVER_PATH env: NotPresent`, restore the required stock value without deleting additional data:
+
+```bash
+flatpak override --user --env=SERVER_PATH=/app/libexec/stremio/server.js com.stremio.Stremio
+flatpak override --user --show com.stremio.Stremio
+```
+
+Then launch stock Stremio again. Do not run an older rollback script that uses `--unset-env=SERVER_PATH`.
 
 ### `STATUS: ERROR`
 
@@ -138,7 +155,7 @@ flatpak override --user --show com.stremio.Stremio
 
 ```bash
 cd ~/stremio-mute
-git checkout v1.2.4
+git checkout v1.2.5
 ./scripts/install.sh
 ./scripts/verify.sh
 ```
@@ -183,7 +200,7 @@ If the result is `INCOMPATIBLE`, run `./scripts/diagnose.sh` and submit the comp
 
 ## 7. Rollback and Reinstall
 
-Remove the project configuration and verify removal:
+Restore the stock server path, remove the project configuration, and verify removal:
 
 ```bash
 cd ~/stremio-mute
@@ -191,7 +208,7 @@ cd ~/stremio-mute
 ./scripts/verify.sh
 ```
 
-The expected post-rollback state is `NOT INSTALLED`. Rollback removes the project’s override, canonical app-owned wrapper, and legacy host wrapper without removing unrelated Stremio user data.
+The expected post-rollback state is `NOT INSTALLED`. Rollback first verifies and restores `SERVER_PATH=/app/libexec/stremio/server.js` inside the Flatpak, then removes the canonical app-owned wrapper and legacy host wrapper without removing unrelated Stremio user data. If stock-path restoration cannot be verified, rollback stops before deleting the existing wrapper deployment.
 
 Reinstall and verify again:
 

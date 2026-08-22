@@ -13,8 +13,24 @@ SOURCE_WRAPPER="${REPO_ROOT}/src/server-wrapper.js"
 source "${SCRIPT_DIR}/runtime-path.sh"
 PROJECT_VERSION="$(tr -d '\r\n' < "${REPO_ROOT}/VERSION" 2>/dev/null || printf '%s' unknown)"
 
+sanitize_text() {
+  local value="$1"
+  local prefix suffix
+  while [[ "${value}" == *"${HOME_DIR}"* ]]; do
+    prefix="${value%%"${HOME_DIR}"*}"
+    suffix="${value#*"${HOME_DIR}"}"
+    value="${prefix}\$HOME${suffix}"
+  done
+  printf '%s' "${value}"
+}
+
 sanitize_path() {
-  printf '%s' "$1" | sed "s#^${HOME_DIR}#\$HOME#"
+  local value="$1"
+  if [ "${value#"${HOME_DIR}"}" != "${value}" ]; then
+    printf '%s%s' "\$HOME" "${value#"${HOME_DIR}"}"
+  else
+    printf '%s' "${value}"
+  fi
 }
 
 sha256_or_absent() {
@@ -78,10 +94,21 @@ fi
 printf '%s\n' '- Flatpak User Override (sanitized):'
 if command -v flatpak >/dev/null 2>&1; then
   OVERRIDE_TEXT=$(flatpak override --user --show "${APP_ID}" 2>/dev/null || true)
-  if printf '%s\n' "${OVERRIDE_TEXT}" | grep -E 'SERVER_PATH' >/dev/null 2>&1; then
-    printf '%s\n' "${OVERRIDE_TEXT}" | sed "s#${HOME_DIR}#\$HOME#g" | grep -E 'SERVER_PATH'
+  if printf '%s\n' "${OVERRIDE_TEXT}" | grep -E '(^|[[:space:]])SERVER_PATH=' >/dev/null 2>&1; then
+    sanitize_text "${OVERRIDE_TEXT}" | grep -E '(^|[[:space:]])SERVER_PATH='
   else
-    printf '%s\n' '  (No SERVER_PATH override set)'
+    printf '%s\n' '  (No user SERVER_PATH override set; checking the app default)'
+  fi
+
+  EFFECTIVE_SERVER_PATH=$(flatpak run --command=node "${APP_ID}" -e 'process.stdout.write(process.env.SERVER_PATH || "")' 2>/dev/null || true)
+  if [ "${EFFECTIVE_SERVER_PATH}" = "${STOCK_SERVER_PATH}" ]; then
+    printf '%s\n' "  Effective SERVER_PATH: ${STOCK_SERVER_PATH} (stock Stremio; Mute disabled)"
+  elif [ "${EFFECTIVE_SERVER_PATH}" = "${EXPECTED_SERVER_PATH}" ]; then
+    printf '%s\n' "  Effective SERVER_PATH: $(sanitize_path "${EXPECTED_SERVER_PATH}") (Stremio Mute deployment)"
+  elif [ -z "${EFFECTIVE_SERVER_PATH}" ]; then
+    printf '%s\n' '  Effective SERVER_PATH: MISSING (stock Stremio launcher will fail)'
+  else
+    printf '%s\n' "  Effective SERVER_PATH: ${EFFECTIVE_SERVER_PATH} (unrecognized)"
   fi
 else
   printf '%s\n' '  (Flatpak unavailable)'

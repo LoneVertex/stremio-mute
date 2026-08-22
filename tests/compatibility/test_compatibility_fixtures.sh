@@ -32,7 +32,27 @@ assert_fixture() {
   fi
 }
 
+assert_behavior_fixture() {
+  local fixture_name="$1"
+  local desc="$2"
+  TOTAL=$((TOTAL+1))
+  local fixture_path="${FIXTURES_DIR}/${fixture_name}"
+  local marker
+  marker=$(mktemp)
+  rm -f "${marker}"
+  STREMIO_TARGET_SERVER_PATH="${fixture_path}" STREMIO_MUTE_READ_MARKER="${marker}" node "${WRAPPER}" >/dev/null 2>&1
+  local actual_exit=$?
+  if [ "${actual_exit}" -eq 0 ] && [ ! -e "${marker}" ]; then
+    echo "  [PASS] ${fixture_name} -> behavioral invariants enforced (${desc})"
+  else
+    echo "  [FAIL] ${fixture_name} -> invariants not enforced (exit ${actual_exit}, marker=$([ -e "${marker}" ] && echo present || echo absent)) (${desc})" >&2
+    ERRORS=$((ERRORS+1))
+  fi
+  rm -f "${marker}"
+}
+
 echo "================================================================================"
+
 echo " RUNNING COMPATIBILITY FIXTURE TESTS"
 echo "================================================================================"
 
@@ -47,6 +67,9 @@ assert_fixture "server_duplicate_pattern.js" 1 "Duplicate pattern fails closed"
 
 # 4. Modified pattern fixture -> exit 1 (FAIL CLOSED)
 assert_fixture "server_modified_pattern.js" 1 "Modified syntax fails closed"
+
+# 5. Behavioral fixture -> exit 0 with no disk read
+assert_behavior_fixture "server_invariants.js" "All upload-suppression invariants hold at runtime"
 
 echo ""
 echo "================================================================================"

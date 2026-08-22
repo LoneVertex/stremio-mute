@@ -16,6 +16,10 @@ CANONICAL_WRAPPER_DIR="${HOME_DIR}/.var/app/${APP_ID}/.stremio-server"
 CANONICAL_WRAPPER="${CANONICAL_WRAPPER_DIR}/server-wrapper.js"
 EXPECTED_SERVER_PATH="${CANONICAL_WRAPPER}"
 
+# Stock server path required by the Stremio Flatpak launcher when Mute is absent.
+# This is app-specific and must be verified inside the sandbox before cleanup.
+STOCK_SERVER_PATH="/app/libexec/stremio/server.js"
+
 # Historical v1.2.3 host-side staging location. It is not runtime-visible in
 # the affected Flatpak installation and must not remain selectable.
 LEGACY_WRAPPER="${HOME_DIR}/.stremio-server/server-wrapper.js"

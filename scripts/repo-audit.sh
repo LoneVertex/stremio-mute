@@ -46,6 +46,12 @@ REQUIRED_FILES=(
   "scripts/package.sh"
   "docs/operations/RUNBOOK.md"
   ".github/workflows/ci.yml"
+  ".github/workflows/release.yml"
+  ".github/CODEOWNERS"
+  ".github/PULL_REQUEST_TEMPLATE.md"
+  ".github/ISSUE_TEMPLATE/bug_report.md"
+  ".github/ISSUE_TEMPLATE/compatibility_report.md"
+  ".github/ISSUE_TEMPLATE/feature_request.md"
 )
 
 for file in "${REQUIRED_FILES[@]}"; do
@@ -82,8 +88,6 @@ PRIVATE_PATHS=$(grep -rn "home/lonevertex" "${REPO_ROOT}" \
   --exclude-dir=".git" \
   --exclude-dir="dist" \
   --exclude="repo-audit.sh" \
-  --exclude="RUNBOOK.md" \
-  --exclude="README.md" \
   2>/dev/null || true)
 
 if [ -z "${PRIVATE_PATHS}" ]; then
@@ -95,7 +99,7 @@ else
 fi
 
 # Check for tokens, private keys
-SECRET_MATCHES=$(grep -rEi "BEGIN (RSA |OPENSSH )?PRIVATE KEY|ghp_[a-zA-Z0-9]{30,}|gho_[a-zA-Z0-9]{30,}" "${REPO_ROOT}" \
+SECRET_MATCHES=$(grep -rEi "BEGIN [A-Z0-9 ]*PRIVATE KEY|ghp_[a-zA-Z0-9]{30,}|gho_[a-zA-Z0-9]{30,}|ghs_[a-zA-Z0-9]{30,}|ghu_[a-zA-Z0-9]{30,}|ghr_[a-zA-Z0-9]{30,}|github_pat_[a-zA-Z0-9_]{20,}|AKIA[0-9A-Z]{16}|xox[baprs]-[a-zA-Z0-9-]{20,}" "${REPO_ROOT}" \
   --exclude-dir=".git" \
   --exclude-dir="dist" 2>/dev/null || true)
 
