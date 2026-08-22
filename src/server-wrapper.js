@@ -28,7 +28,7 @@ const Module = require('module');
 
 const CONTROLLER_NAME = 'stremio-mute';
 // Authoritative runtime version source; release VERSION must match via repository audit.
-const CONTROLLER_VERSION = '1.2.4';
+const CONTROLLER_VERSION = '1.2.5';
 const CONTROLLER_SOURCE_SHA256 = crypto.createHash('sha256').update(fs.readFileSync(__filename)).digest('hex');
 const TARGET_SERVER_PATH = process.env.STREMIO_TARGET_SERVER_PATH || '/app/libexec/stremio/server.js';
 

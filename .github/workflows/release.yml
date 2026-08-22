@@ -39,15 +39,24 @@ jobs:
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '20'
 
       - name: Install ShellCheck
         run: sudo apt-get update && sudo apt-get install -y shellcheck
+
+      - name: Validate Release Tag Matches VERSION
+        run: |
+          version=$(tr -d '[:space:]' < VERSION)
+          expected_tag="v${version}"
+          if [ "${GITHUB_REF_NAME}" != "${expected_tag}" ]; then
+            echo "Release tag ${GITHUB_REF_NAME} does not match VERSION ${version} (expected ${expected_tag})."
+            exit 1
+          fi
 
       - name: Validate Test Suite Before Packaging
         run: |
@@ -62,21 +71,29 @@ jobs:
           bash scripts/repo-audit.sh
 
       - name: Package Release
-        run: bash scripts/package.sh
+        run: |
+          bash scripts/package.sh
+          cp dist/SHA256SUMS /tmp/stremio-mute-first-SHA256SUMS
+          bash scripts/package.sh
+          cmp -s /tmp/stremio-mute-first-SHA256SUMS dist/SHA256SUMS
 
       - name: Verify Release Archives and Checksums
         run: |
           cd dist
           sha256sum -c SHA256SUMS
-          tar -tzf stremio-mute-v*.tar.gz | grep -q '^stremio-mute-v[^/]*/README.md$'
-          unzip -Z1 stremio-mute-v*.zip | grep -q '^stremio-mute-v[^/]*/README.md$'
-          tar -tzf stremio-mute-v*.tar.gz | grep -q '^stremio-mute-v[^/]*/scripts/runtime-path.sh$'
-          unzip -Z1 stremio-mute-v*.zip | grep -q '^stremio-mute-v[^/]*/scripts/runtime-path.sh$'
+          tar -tzf stremio-mute-v*.tar.gz | grep -E '^stremio-mute-v[^/]*/README\.md$' >/dev/null
+          unzip -Z1 stremio-mute-v*.zip | grep -E '^stremio-mute-v[^/]*/README\.md$' >/dev/null
+          tar -tzf stremio-mute-v*.tar.gz | grep -E '^stremio-mute-v[^/]*/scripts/runtime-path\.sh$' >/dev/null
+          unzip -Z1 stremio-mute-v*.zip | grep -E '^stremio-mute-v[^/]*/scripts/runtime-path\.sh$' >/dev/null
+          for required in FAQ.md SUPPORT.md THIRD-PARTY.md VERSIONING.md CODE_OF_CONDUCT.md; do
+            tar -tzf stremio-mute-v*.tar.gz | grep -E "^stremio-mute-v[^/]*/${required}$" >/dev/null
+            unzip -Z1 stremio-mute-v*.zip | grep -E "^stremio-mute-v[^/]*/${required}$" >/dev/null
+          done
           if tar -tzf stremio-mute-v*.tar.gz | grep -E '(^|/)(\.git|.*\.log|.*\.swp|credentials|private_key|secret)' ; then exit 1; fi
           if unzip -Z1 stremio-mute-v*.zip | grep -E '(^|/)(\.git|.*\.log|.*\.swp|credentials|private_key|secret)' ; then exit 1; fi
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           files: |
             dist/*.tar.gz

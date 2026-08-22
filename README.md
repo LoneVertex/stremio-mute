@@ -14,12 +14,12 @@
 
 ## Quickstart
 
-Use the published v1.2.4 checkout for a reproducible installation:
+Use the published v1.2.5 checkout for a reproducible installation:
 
 ```bash
 git clone https://github.com/LoneVertex/stremio-mute.git
 cd stremio-mute
-git checkout v1.2.4
+git checkout v1.2.5
 ./scripts/install.sh
 ./scripts/verify.sh
 ```
@@ -67,7 +67,7 @@ The canonical wrapper is stored in Flatpak app-owned storage. Use `$HOME/.var/ap
 SERVER_PATH=/home/current-user/.var/app/com.stremio.Stremio/.stremio-server/server-wrapper.js
 ```
 
-The former host-only `$HOME/.stremio-server/server-wrapper.js` location is **LEGACY** for v1.2.4 and is removed by the installer. The literal `SERVER_PATH=~/.stremio-server/server-wrapper.js` is **OLD / INVALID / HISTORICAL** and must never be configured because the relevant Flatpak runtime does not expand the tilde.
+The former host-only `$HOME/.stremio-server/server-wrapper.js` location is **LEGACY** for v1.2.5 and is removed by the installer. The literal `SERVER_PATH=~/.stremio-server/server-wrapper.js` is **OLD / INVALID / HISTORICAL** and must never be configured because the relevant Flatpak runtime does not expand the tilde.
 
 ---
 
@@ -82,7 +82,7 @@ This project is a local engine-policy enforcement tool. It is not a content prov
 | Layer | Environment | Status | Details |
 |---|---|---|---|
 | **Packaging** | Linux Flatpak (`com.stremio.Stremio`) | **SUPPORTED** | Standard Flathub distribution mechanism |
-| **Controller** | Stremio Mute v1.2.4 | **CURRENT** | Flatpak app-owned canonical path, sandbox visibility proof, fail-closed wrapper with exact-one structural fingerprints |
+| **Controller** | Stremio Mute v1.2.5 | **CURRENT** | Flatpak app-owned canonical path, sandbox visibility proof, fail-closed wrapper with exact-one structural fingerprints |
 | **Verified environment** | Fedora 44 + KDE Plasma 6 + Linux 7.1 | **VERIFIED** | Stremio v1.2.0 / EngineFS v4.21.0; this is the verified target evidence, not the controller version |
 | **Other distributions** | Arch Linux, Ubuntu, Debian, openSUSE | **UNVERIFIED** | Expected to work through Flatpak but not independently tested by this project |
 | **Native packages** | `.deb`, `.rpm`, AUR, AppImage | **OUT OF SCOPE** | The implementation is designed for the Flatpak user override |
@@ -103,7 +103,7 @@ Run:
 - **`RUNTIME VERIFIED`** means Stremio is running and the controller endpoint and heartbeat confirm protected execution, while the endpoint version matches `VERSION` and its source SHA256 matches the installed wrapper.
 - **`NOT PROTECTED`** means Stremio is running without complete controller evidence.
 - **`INCOMPATIBLE`** means the bundled engine no longer matches the required structural fingerprints; the wrapper remains fail-closed.
-- **`NOT INSTALLED`** means the wrapper or exact absolute override is missing or incorrect.
+- **`NOT INSTALLED`** means the Mute wrapper or exact Mute override is absent or incorrect. After rollback, this state is expected, provided the effective stock `SERVER_PATH=/app/libexec/stremio/server.js` remains launchable.
 - **`ERROR`** means the verifier could not safely determine the state and must not be interpreted as zero upload.
 
 ---
@@ -145,7 +145,7 @@ cd ~/stremio-mute
 ./scripts/verify.sh
 ```
 
-After rollback, `NOT INSTALLED` is expected. The script removes the project’s override, canonical app-owned wrapper, and legacy host wrapper without removing unrelated Stremio user data. To reinstall and regenerate the current user’s canonical absolute path:
+After rollback, `NOT INSTALLED` is expected for Mute. The script restores `SERVER_PATH=/app/libexec/stremio/server.js`, verifies the effective stock path inside the sandbox, and then removes the canonical app-owned wrapper and legacy host wrapper without removing unrelated Stremio user data. If stock-path restoration cannot be verified, it preserves the existing deployment. To reinstall and regenerate the current user’s canonical absolute path:
 
 ```bash
 ./scripts/install.sh

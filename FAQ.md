@@ -1,4 +1,4 @@
-# Frequently Asked Questions — Stremio Mute v1.2.4
+# Frequently Asked Questions — Stremio Mute v1.2.5
 
 ### Will this reduce or slow down my streaming download speed?
 
@@ -43,18 +43,18 @@ If the result is `INCOMPATIBLE`, run `./scripts/diagnose.sh` and submit a compat
 
 ### Why can the application fail after an old rollback?
 
-Older installations may have left a host-only wrapper or a stale override. v1.2.4 rollback removes the canonical app-owned wrapper, the legacy host wrapper, and the project’s exact Flatpak override. Verify removal with:
+Older installations may have left a host-only wrapper or a stale override. v1.2.5 rollback restores `SERVER_PATH=/app/libexec/stremio/server.js`, verifies the effective stock path inside the sandbox, and then removes the canonical app-owned wrapper and legacy host wrapper. Verify removal with:
 
 ```bash
 ./scripts/rollback.sh
 ./scripts/verify.sh
 ```
 
-`NOT INSTALLED` is the expected state after a successful rollback. Reinstall with `./scripts/install.sh` to regenerate the current user’s canonical app-owned absolute path and prove sandbox visibility.
+`NOT INSTALLED` is the expected state for Mute after a successful rollback. Stock Stremio must still be launchable. If an older rollback produced `Failed to read SERVER_PATH env: NotPresent`, restore the stock path with `flatpak override --user --env=SERVER_PATH=/app/libexec/stremio/server.js com.stremio.Stremio`. Reinstall with `./scripts/install.sh` only when you intend to enable Mute again.
 
 ### Why does the installer stop Stremio?
 
-A Node process keeps the wrapper it loaded in memory. Replacing the wrapper file on disk does not change a process that is already running, so it could otherwise continue reporting an older controller version. v1.2.4 stops a running Stremio process before deploying new wrapper bytes, removes the legacy host wrapper, and stages the canonical app-owned wrapper; the next launch loads the current release.
+A Node process keeps the wrapper it loaded in memory. Replacing the wrapper file on disk does not change a process that is already running, so it could otherwise continue reporting an older controller version. v1.2.5 stops a running Stremio process before deploying new wrapper bytes, removes the legacy host wrapper, and stages the canonical app-owned wrapper; the next launch loads the current release.
 
 ### Why can a running process report an older controller version?
 

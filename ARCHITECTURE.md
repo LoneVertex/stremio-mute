@@ -49,7 +49,7 @@ During initial investigation, several system and network-level mechanisms were e
 
 ---
 
-## 3. The v1.2.4 In-Memory Controller Architecture
+## 3. The v1.2.5 In-Memory Controller Architecture
 
 The **Stremio Mute** controller enforces policy at the application layer by modifying engine state directly in Node.js process memory. The launch path is:
 
@@ -61,7 +61,7 @@ Stremio Flatpak
     → torrent engine and local player IPC
 ```
 
-The installer may use `$HOME` as shell notation when locating the current user’s home directory, but the persisted Flatpak environment value must be the expanded absolute app-owned path. The former `$HOME/.stremio-server/server-wrapper.js` location is a legacy host-only deployment and is removed. A literal tilde is not expanded by Flatpak or the Node.js process and is therefore invalid. The installer and verifier prove that the canonical wrapper is readable inside the sandbox. This distinction is mandatory for install, verify, rollback, reboot, update, and reinstall behavior.
+The installer may use `$HOME` as shell notation when locating the current user’s home directory, but the persisted Mute `SERVER_PATH` value must be the expanded absolute app-owned path. The former `$HOME/.stremio-server/server-wrapper.js` location is a legacy host-only deployment and is removed. A literal tilde is not expanded by Flatpak or the Node.js process and is therefore invalid. When Mute is installed, the installer and verifier prove that the canonical wrapper is readable inside the sandbox. During rollback, the controller restores and verifies the stock `SERVER_PATH=/app/libexec/stremio/server.js` before removing the Mute wrapper. This distinction is mandatory for install, verify, rollback, reboot, update, and reinstall behavior.
 
 ```text
                                +--------------------------------------------+
@@ -71,7 +71,7 @@ The installer may use `$HOME` as shell notation when locating the current user�
                                                      | (Spawns Node using SERVER_PATH)
                                                      v
                                +--------------------------------------------+
-                               |        src/server-wrapper.js (v1.2.4)      |
+                               |        src/server-wrapper.js (v1.2.5)      |
                                +--------------------------------------------+
                                                      |
                      +-------------------------------+-------------------------------+

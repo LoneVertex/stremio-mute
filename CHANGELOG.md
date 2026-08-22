@@ -4,6 +4,19 @@ All notable changes to this project are documented in this file.
 
 ---
 
+## [1.2.5] - 2026-08-22
+
+### Fixed & Hardened
+- **Safe Stock Rollback:** `rollback.sh` now restores and verifies the stock `SERVER_PATH=/app/libexec/stremio/server.js` required by the Flatpak launcher instead of unsetting the variable.
+- **Non-Destructive Failure Handling:** Rollback preserves the active Mute deployment when Flatpak, stock-target, override, or sandbox verification fails before cleanup.
+- **Effective Environment Verification:** Rollback verifies the effective `SERVER_PATH` inside the Flatpak sandbox, not only the textual user override.
+- **Diagnostic Clarity:** Diagnostics distinguish stock Stremio with Mute disabled from a missing or invalid `SERVER_PATH`.
+- **Regression Coverage:** Added tests for the old unset-variable failure, stock launch after rollback, idempotent rollback, effective-path mismatch, stock-target visibility failure, wrapper preservation, and behavioral upload-suppression invariants.
+- **Release Integrity:** Hardened CI/release action pinning and archive checks, added Git-tag/VERSION matching, and made tar/ZIP artifacts reproducible.
+- **Controller Identity:** Synchronized the controller release identity to v1.2.5; the upstream Stremio target version remains independent.
+
+---
+
 ## [1.2.4] - 2026-08-15
 
 ### Fixed & Hardened
